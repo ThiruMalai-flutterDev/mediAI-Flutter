@@ -1,0 +1,27 @@
+# Flutter Native Splash Configuration
+flutter_native_splash:
+  # Background color (purple gradient)
+  color: "#9D549D"
+  
+  # Image configuration
+  image: assets/images/applogo.jpg
+  
+  # Branding
+  color_dark: "#9D549D"
+  image_dark: assets/images/applogo.jpg
+  
+  # Android configuration
+  android_12:
+    image: assets/images/applogo.jpg
+    icon_background_color: "#9D549D"
+    image_dark: assets/images/applogo.jpg
+    icon_background_color_dark: "#9D549D"
+  
+  # iOS configuration
+  ios: true
+  
+  # Web configuration
+  web: false
+  
+  # Full screen mode
+  fullscreen: true
