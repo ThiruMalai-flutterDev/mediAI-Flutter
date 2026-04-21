@@ -8,16 +8,16 @@ import 'viewmodels/login_view_model.dart';
 import 'viewmodels/chat_view_model.dart';
 import 'viewmodels/book_view_model.dart';
 import 'viewmodels/ai_question_builder_view_model.dart';
-import 'viewmodels/lesson_plan_view_model.dart';
+import 'viewmodels/lesson_plan_view_model-.dart';
 import 'viewmodels/exam_view_model.dart';
 
 void main() {
   // Initialize API service
   ApiService.init();
-  
+
   // Uncomment the line below to debug all endpoints on app startup
   // ApiService.debugAllEndpoints();
-  
+
   runApp(const MyApp());
 }
 
@@ -31,9 +31,11 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<LoginViewModel>(create: (_) => LoginViewModel()),
         ChangeNotifierProvider<ChatViewModel>(create: (_) => ChatViewModel()),
         ChangeNotifierProvider<BookViewModel>(create: (_) => BookViewModel()),
-        ChangeNotifierProvider<AIQuestionBuilderViewModel>(create: (_) => AIQuestionBuilderViewModel()),
+        ChangeNotifierProvider<AIQuestionBuilderViewModel>(
+            create: (_) => AIQuestionBuilderViewModel()),
         ChangeNotifierProvider<ExamViewModel>(create: (_) => ExamViewModel()),
-        ChangeNotifierProvider<LessonPlanViewModel>(create: (_) => LessonPlanViewModel()),
+        ChangeNotifierProvider<LessonPlanViewModel>(
+            create: (_) => LessonPlanViewModel()),
       ],
       child: MaterialApp(
         title: 'Dr jebasingh onco ai',

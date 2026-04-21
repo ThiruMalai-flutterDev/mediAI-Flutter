@@ -32,25 +32,29 @@ class Exam {
     this.obtainedMarks,
   }) : totalMarks = totalQuestions * marksPerQuestion;
 
+  // Get just the date part
+  DateTime get date =>
+      DateTime(startDateTime.year, startDateTime.month, startDateTime.day);
+
   ExamStatus get status {
     return _calculateStatus();
   }
 
   ExamStatus _calculateStatus() {
     final now = DateTime.now();
-    
+
     // If exam is completed, it's always completed regardless of time
     if (isCompleted) {
       return ExamStatus.completed;
     }
-    
+
     // Check time-based status with more precise logic
     if (now.isBefore(startDateTime)) {
       return ExamStatus.upcoming;
     } else if (now.isAfter(endDateTime)) {
       return ExamStatus.expired;
-    } else if (now.isAtSameMomentAs(startDateTime) || 
-               (now.isAfter(startDateTime) && now.isBefore(endDateTime))) {
+    } else if (now.isAtSameMomentAs(startDateTime) ||
+        (now.isAfter(startDateTime) && now.isBefore(endDateTime))) {
       return ExamStatus.live;
     } else {
       // Fallback - should not reach here, but just in case
@@ -122,6 +126,15 @@ class Exam {
     return '${endDateTime.day}/${endDateTime.month}/${endDateTime.year} ${endDateTime.hour.toString().padLeft(2, '0')}:${endDateTime.minute.toString().padLeft(2, '0')}';
   }
 
+  // Get just the time part (HH:MM) for display
+  String get startTimeOnly {
+    return '${startDateTime.hour.toString().padLeft(2, '0')}:${startDateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  String get endTimeOnly {
+    return '${endDateTime.hour.toString().padLeft(2, '0')}:${endDateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   String get durationText {
     final hours = durationMinutes ~/ 60;
     final minutes = durationMinutes % 60;
@@ -137,7 +150,7 @@ class Exam {
   String get timeUntilStart {
     final now = DateTime.now();
     final difference = startDateTime.difference(now);
-    
+
     if (difference.isNegative) {
       return 'Started';
     } else if (difference.inDays > 0) {
@@ -154,7 +167,7 @@ class Exam {
   String get timeRemaining {
     final now = DateTime.now();
     final difference = endDateTime.difference(now);
-    
+
     if (difference.isNegative) {
       return 'Expired';
     } else if (difference.inDays > 0) {
@@ -172,10 +185,10 @@ class Exam {
     final startDateTime = DateTime.parse(json['startDateTime'] as String);
     final endDateTime = DateTime.parse(json['endDateTime'] as String);
     final isCompleted = json['isCompleted'] as bool? ?? false;
-    final completedAt = json['completedAt'] != null 
-        ? DateTime.parse(json['completedAt'] as String) 
+    final completedAt = json['completedAt'] != null
+        ? DateTime.parse(json['completedAt'] as String)
         : null;
-    
+
     return Exam(
       id: json['id'] as String,
       examName: json['examName'] as String,
@@ -188,8 +201,8 @@ class Exam {
       durationMinutes: json['durationMinutes'] as int,
       isCompleted: isCompleted,
       completedAt: completedAt,
-      obtainedMarks: json['obtainedMarks'] != null 
-          ? (json['obtainedMarks'] as num).toDouble() 
+      obtainedMarks: json['obtainedMarks'] != null
+          ? (json['obtainedMarks'] as num).toDouble()
           : null,
     );
   }

@@ -24,14 +24,16 @@ class QuestionPreviewScreen extends StatefulWidget {
 }
 
 class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
-  final Map<int, int> _selectedOptionIndexByQuestion = {}; // questionIndex -> optionIndex
-  final Map<int, int> _correctOptionIndexByQuestion = {}; // filled from payload if present
+  final Map<int, int> _selectedOptionIndexByQuestion =
+      {}; // questionIndex -> optionIndex
+  final Map<int, int> _correctOptionIndexByQuestion =
+      {}; // filled from payload if present
 
   List<_Question> _parseQuestions(dynamic payload) {
     // Debug: Print the payload structure
     print('🔍 QuestionPreviewScreen - Payload received: $payload');
     print('🔍 Payload type: ${payload.runtimeType}');
-    
+
     if (payload is Map) {
       print('🔍 Payload keys: ${payload.keys.toList()}');
       if (payload.containsKey('questions')) {
@@ -39,21 +41,22 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
         print('🔍 Questions field value: ${payload['questions']}');
       }
     }
-    
+
     // Try common shapes: { questions: [ { question, options: [..], answer_index or answer } ] }
     final List<_Question> result = [];
     if (payload is Map && payload['questions'] is List) {
       final List list = payload['questions'];
       print('🔍 Found ${list.length} questions in payload');
-      
+
       for (var i = 0; i < list.length; i++) {
         final item = list[i];
-        print('🔍 Processing question ${i + 1}, item type: ${item.runtimeType}');
+        print(
+            '🔍 Processing question ${i + 1}, item type: ${item.runtimeType}');
         if (item is Map) {
           print('🔍 Question ${i + 1} keys: ${item.keys.toList()}');
           final q = item['question']?.toString() ?? 'Question ${i + 1}';
           print('🔍 Question ${i + 1}: $q');
-          
+
           // Support two formats:
           // 1) options: ["A", "B", ...]
           // 2) options: [{option: A, text: "...", correct: true/false}, ...]
@@ -80,14 +83,19 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
           } else {
             print('🔍 No options found for question ${i + 1}');
           }
-          if (item['answer_index'] is int) correctIndex = item['answer_index'] as int;
-          if (correctIndex == null && item['answer'] != null && options.isNotEmpty) {
+          if (item['answer_index'] is int)
+            correctIndex = item['answer_index'] as int;
+          if (correctIndex == null &&
+              item['answer'] != null &&
+              options.isNotEmpty) {
             final ans = item['answer'].toString();
             final idx = options.indexOf(ans);
             if (idx >= 0) correctIndex = idx;
           }
-          print('🔍 Final question ${i + 1}: text="$q", options=$options, correctIndex=$correctIndex');
-          result.add(_Question(text: q, options: options, correctIndex: correctIndex));
+          print(
+              '🔍 Final question ${i + 1}: text="$q", options=$options, correctIndex=$correctIndex');
+          result.add(
+              _Question(text: q, options: options, correctIndex: correctIndex));
         } else {
           print('🔍 Question ${i + 1} is not a Map, skipping');
         }
@@ -96,12 +104,13 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
       print('🔍 Invalid payload structure - expected Map with questions list');
       print('🔍 Payload is Map: ${payload is Map}');
       if (payload is Map) {
-        print('🔍 Payload has questions key: ${payload.containsKey('questions')}');
+        print(
+            '🔍 Payload has questions key: ${payload.containsKey('questions')}');
         if (payload.containsKey('questions')) {
           print('🔍 Questions is List: ${payload['questions'] is List}');
         }
       }
-      
+
       // Fallback: If parsing fails, create sample questions for testing
       print('🔍 Creating fallback sample questions for testing');
       result.addAll([
@@ -117,7 +126,7 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
         ),
       ]);
     }
-    
+
     print('🔍 Parsed ${result.length} questions successfully');
     return result;
   }
@@ -139,7 +148,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.quiz_outlined, size: 64, color: AppColors.mediumGray),
+                    Icon(Icons.quiz_outlined,
+                        size: 64, color: AppColors.mediumGray),
                     SizedBox(height: 2.h),
                     Text(
                       'No questions to preview',
@@ -197,7 +207,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                               child: _InfoChip(
                                 icon: Icons.stars,
                                 label: 'Marks/Q',
-                                value: widget.marksPerQuestion.toStringAsFixed(1),
+                                value:
+                                    widget.marksPerQuestion.toStringAsFixed(1),
                               ),
                             ),
                             SizedBox(width: 2.w),
@@ -205,7 +216,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                               child: _InfoChip(
                                 icon: Icons.assessment,
                                 label: 'Total',
-                                value: '${(questions.length * widget.marksPerQuestion).toStringAsFixed(1)}',
+                                value:
+                                    '${(questions.length * widget.marksPerQuestion).toStringAsFixed(1)}',
                               ),
                             ),
                           ],
@@ -222,13 +234,15 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                       itemBuilder: (context, index) {
                         final q = questions[index];
                         if (q.correctIndex != null) {
-                          _correctOptionIndexByQuestion[index] = q.correctIndex!;
+                          _correctOptionIndexByQuestion[index] =
+                              q.correctIndex!;
                         }
                         return _QuestionCard(
                           index: index,
                           question: q,
                           selectedIndex: _selectedOptionIndexByQuestion[index],
-                          onSelected: (optIdx) => setState(() => _selectedOptionIndexByQuestion[index] = optIdx),
+                          onSelected: (optIdx) => setState(() =>
+                              _selectedOptionIndexByQuestion[index] = optIdx),
                         );
                       },
                     ),
@@ -247,7 +261,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                             ),
                             side: BorderSide(color: AppColors.primaryPurple),
                           ),
-                          child: Text('Back', style: TextStyle(color: AppColors.primaryPurple)),
+                          child: Text('Back',
+                              style: TextStyle(color: AppColors.primaryPurple)),
                         ),
                       ),
                       SizedBox(width: 2.w),
@@ -262,7 +277,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text('Score', style: TextStyle(color: AppColors.white)),
+                            child: const Text('Score',
+                                style: TextStyle(color: AppColors.white)),
                           ),
                         ),
                         SizedBox(width: 2.w),
@@ -276,7 +292,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text('Save', style: TextStyle(color: AppColors.white)),
+                            child: const Text('Save',
+                                style: TextStyle(color: AppColors.white)),
                           ),
                         ),
                       ] else ...[
@@ -290,7 +307,8 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text('Submit & Score', style: TextStyle(color: AppColors.white)),
+                            child: const Text('Submit & Score',
+                                style: TextStyle(color: AppColors.white)),
                           ),
                         ),
                       ],
@@ -304,7 +322,7 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
 
   void _savePaper() async {
     if (widget.paper == null) return;
-    
+
     try {
       // Show loading dialog
       showDialog(
@@ -314,34 +332,39 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
           child: CircularProgressIndicator(),
         ),
       );
-      
+
       // Generate sample questions for the API
       final questions = _generateSampleQuestions(widget.paper!.totalQuestions);
-      
+
       // Format the payload according to API structure
       final payload = {
         'exam_id': widget.paper!.id,
         'exam_name': widget.paper!.examName,
         'book_name': widget.paper!.bookName,
-        'date': '${widget.paper!.date.year}-${widget.paper!.date.month.toString().padLeft(2, '0')}-${widget.paper!.date.day.toString().padLeft(2, '0')}',
-        'start_time': '${widget.paper!.startTime.hour.toString().padLeft(2, '0')}:${widget.paper!.startTime.minute.toString().padLeft(2, '0')}:00',
-        'end_time': '${widget.paper!.endTime.hour.toString().padLeft(2, '0')}:${widget.paper!.endTime.minute.toString().padLeft(2, '0')}:00',
+        'date':
+            '${widget.paper!.date.year}-${widget.paper!.date.month.toString().padLeft(2, '0')}-${widget.paper!.date.day.toString().padLeft(2, '0')}',
+        'start_time':
+            '${widget.paper!.startTime.hour.toString().padLeft(2, '0')}:${widget.paper!.startTime.minute.toString().padLeft(2, '0')}:00',
+        'end_time':
+            '${widget.paper!.endTime.hour.toString().padLeft(2, '0')}:${widget.paper!.endTime.minute.toString().padLeft(2, '0')}:00',
         'total_questions': widget.paper!.totalQuestions,
         'marks_per_question': widget.paper!.marksPerQuestion,
         'total_marks': widget.paper!.totalMarks,
         'questions': questions,
       };
-      
+
       // Call the API
       final response = await ApiService.saveExamWithQuestions(payload);
-      
+
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
-      
+
       if (response.status) {
         // Show success message from API response
-        String message = response.message.isNotEmpty ? response.message : 'Exam saved successfully!';
-        
+        String message = response.message.isNotEmpty
+            ? response.message
+            : 'Exam saved successfully!';
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -349,16 +372,17 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-        
+
         // Get the AI Question Builder ViewModel and add the paper
-        final vm = Provider.of<AIQuestionBuilderViewModel>(context, listen: false);
+        final vm =
+            Provider.of<AIQuestionBuilderViewModel>(context, listen: false);
         vm.addPaper(widget.paper!);
-        
+
         // Navigate back to the main screen
         if (mounted) {
           // Close the preview screen first
           Navigator.of(context).pop();
-          
+
           // Then close the form modal if it's still open
           // Use a small delay to ensure the first pop completes
           Future.delayed(const Duration(milliseconds: 100), () {
@@ -369,8 +393,10 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
         }
       } else {
         // Show error message from API response
-        String errorMessage = response.message.isNotEmpty ? response.message : 'Failed to save exam';
-        
+        String errorMessage = response.message.isNotEmpty
+            ? response.message
+            : 'Failed to save exam';
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -379,11 +405,10 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
           ),
         );
       }
-      
     } catch (e) {
       // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
-      
+
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -397,20 +422,21 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
 
   List<Map<String, dynamic>> _generateSampleQuestions(int totalQuestions) {
     final questions = <Map<String, dynamic>>[];
-    
+
     for (int i = 0; i < totalQuestions; i++) {
       questions.add({
-        'question': 'Sample medical question ${i + 1} about ${widget.paper?.bookName ?? 'the topic'}?',
+        'question':
+            'Sample medical question ${i + 1} about ${widget.paper?.bookName ?? 'the topic'}?',
         'options': [
           {'text': 'Option A: First possible answer', 'isCorrect': true},
-          {'text': 'Option B: Second possible answer', 'isCorrect': false}, 
+          {'text': 'Option B: Second possible answer', 'isCorrect': false},
           {'text': 'Option C: Third possible answer', 'isCorrect': false},
           {'text': 'Option D: Fourth possible answer', 'isCorrect': false},
         ],
         'explanation': 'This is a sample explanation for question ${i + 1}.',
       });
     }
-    
+
     return questions;
   }
 
@@ -418,12 +444,12 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
     int correct = 0;
     int incorrect = 0;
     int unanswered = 0;
-    
+
     // Calculate correct, incorrect, and unanswered questions
     for (int i = 0; i < totalQuestions; i++) {
       final selectedIdx = _selectedOptionIndexByQuestion[i];
       final correctIdx = _correctOptionIndexByQuestion[i];
-      
+
       if (selectedIdx == null) {
         unanswered++;
       } else if (correctIdx != null && selectedIdx == correctIdx) {
@@ -432,11 +458,12 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
         incorrect++;
       }
     }
-    
+
     final totalMarks = correct * widget.marksPerQuestion;
     final maxMarks = totalQuestions * widget.marksPerQuestion;
-    final percentage = totalQuestions > 0 ? (correct / totalQuestions * 100) : 0.0;
-    
+    final percentage =
+        totalQuestions > 0 ? (correct / totalQuestions * 100) : 0.0;
+
     // Determine grade based on percentage
     String grade;
     Color gradeColor;
@@ -468,8 +495,16 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
         title: Row(
           children: [
             Icon(
-              percentage >= 70 ? Icons.celebration : percentage >= 50 ? Icons.thumb_up : Icons.thumb_down,
-              color: percentage >= 70 ? AppColors.successGreen : percentage >= 50 ? AppColors.warningOrange : AppColors.errorRed,
+              percentage >= 70
+                  ? Icons.celebration
+                  : percentage >= 50
+                      ? Icons.thumb_up
+                      : Icons.thumb_down,
+              color: percentage >= 70
+                  ? AppColors.successGreen
+                  : percentage >= 50
+                      ? AppColors.warningOrange
+                      : AppColors.errorRed,
             ),
             SizedBox(width: 2.w),
             const Text('Your Score'),
@@ -484,9 +519,17 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: percentage >= 70 ? AppColors.successGreen.withOpacity(0.1) : percentage >= 50 ? AppColors.warningOrange.withOpacity(0.1) : AppColors.errorRed.withOpacity(0.1),
+                color: percentage >= 70
+                    ? AppColors.successGreen.withOpacity(0.1)
+                    : percentage >= 50
+                        ? AppColors.warningOrange.withOpacity(0.1)
+                        : AppColors.errorRed.withOpacity(0.1),
                 border: Border.all(
-                  color: percentage >= 70 ? AppColors.successGreen : percentage >= 50 ? AppColors.warningOrange : AppColors.errorRed,
+                  color: percentage >= 70
+                      ? AppColors.successGreen
+                      : percentage >= 50
+                          ? AppColors.warningOrange
+                          : AppColors.errorRed,
                   width: 3,
                 ),
               ),
@@ -496,7 +539,11 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: percentage >= 70 ? AppColors.successGreen : percentage >= 50 ? AppColors.warningOrange : AppColors.errorRed,
+                    color: percentage >= 70
+                        ? AppColors.successGreen
+                        : percentage >= 50
+                            ? AppColors.warningOrange
+                            : AppColors.errorRed,
                   ),
                 ),
               ),
@@ -511,28 +558,47 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
               ),
               child: Column(
                 children: [
-                  _ScoreRow(label: 'Grade', value: grade, valueColor: gradeColor),
-                  _ScoreRow(label: 'Percentage', value: '${percentage.toStringAsFixed(1)}%'),
+                  _ScoreRow(
+                      label: 'Grade', value: grade, valueColor: gradeColor),
+                  _ScoreRow(
+                      label: 'Percentage',
+                      value: '${percentage.toStringAsFixed(1)}%'),
                   _ScoreRow(label: 'Total Questions', value: '$totalQuestions'),
-                  _ScoreRow(label: 'Correct Answers', value: '$correct', valueColor: AppColors.successGreen),
-                  _ScoreRow(label: 'Incorrect Answers', value: '$incorrect', valueColor: AppColors.errorRed),
-                  _ScoreRow(label: 'Unanswered', value: '$unanswered', valueColor: AppColors.mediumGray),
-                  _ScoreRow(label: 'Marks Obtained', value: '${totalMarks.toStringAsFixed(1)} / ${maxMarks.toStringAsFixed(1)}'),
+                  _ScoreRow(
+                      label: 'Correct Answers',
+                      value: '$correct',
+                      valueColor: AppColors.successGreen),
+                  _ScoreRow(
+                      label: 'Incorrect Answers',
+                      value: '$incorrect',
+                      valueColor: AppColors.errorRed),
+                  _ScoreRow(
+                      label: 'Unanswered',
+                      value: '$unanswered',
+                      valueColor: AppColors.mediumGray),
+                  _ScoreRow(
+                      label: 'Marks Obtained',
+                      value:
+                          '${totalMarks.toStringAsFixed(1)} / ${maxMarks.toStringAsFixed(1)}'),
                 ],
               ),
             ),
             SizedBox(height: 1.h),
             // Performance message
             Text(
-              percentage >= 70 
-                ? 'Excellent! Well done!' 
-                : percentage >= 50 
-                  ? 'Good effort! Keep practicing!' 
-                  : 'Keep studying! You can do better!',
+              percentage >= 70
+                  ? 'Excellent! Well done!'
+                  : percentage >= 50
+                      ? 'Good effort! Keep practicing!'
+                      : 'Keep studying! You can do better!',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: percentage >= 70 ? AppColors.successGreen : percentage >= 50 ? AppColors.warningOrange : AppColors.errorRed,
+                color: percentage >= 70
+                    ? AppColors.successGreen
+                    : percentage >= 50
+                        ? AppColors.warningOrange
+                        : AppColors.errorRed,
               ),
               textAlign: TextAlign.center,
             ),
@@ -603,7 +669,8 @@ class _QuestionCard extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
                   decoration: BoxDecoration(
                     color: AppColors.primaryPurple,
                     borderRadius: BorderRadius.circular(6),
@@ -637,10 +704,14 @@ class _QuestionCard extends StatelessWidget {
             Container(
               margin: EdgeInsets.only(bottom: 1.h),
               decoration: BoxDecoration(
-                color: selectedIndex == i ? AppColors.lightGray : AppColors.backgroundLight,
+                color: selectedIndex == i
+                    ? AppColors.lightGray
+                    : AppColors.backgroundLight,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: selectedIndex == i ? AppColors.primaryPurple : AppColors.borderLight,
+                  color: selectedIndex == i
+                      ? AppColors.primaryPurple
+                      : AppColors.borderLight,
                   width: selectedIndex == i ? 2 : 1,
                 ),
               ),
@@ -653,12 +724,15 @@ class _QuestionCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13.sp,
                     color: AppColors.black,
-                    fontWeight: selectedIndex == i ? FontWeight.w500 : FontWeight.normal,
+                    fontWeight: selectedIndex == i
+                        ? FontWeight.w500
+                        : FontWeight.normal,
                   ),
                 ),
                 dense: true,
                 activeColor: AppColors.primaryPurple,
-                contentPadding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
               ),
             ),
         ],
@@ -750,5 +824,3 @@ class _ScoreRow extends StatelessWidget {
     );
   }
 }
-
-

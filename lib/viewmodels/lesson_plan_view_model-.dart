@@ -15,7 +15,7 @@ class LessonPlanViewModel extends ChangeNotifier {
   String get errorMessage => _errorMessage;
   String get pdfUrl => _pdfUrl;
   String get localPdfPath => _localPdfPath;
-  bool get hasPdf => _pdfUrl.isNotEmpty;
+  bool get hasPdf => _pdfUrl.isNotEmpty || _localPdfPath.isNotEmpty;
 
   // Generate lesson plan using AI
   Future<void> generateLessonPlan({
@@ -39,8 +39,28 @@ class LessonPlanViewModel extends ChangeNotifier {
 
       if (response != null) {
         _generatedLessonPlan = response;
-        _pdfUrl = response['pdf_url'] ?? '';
-        logger.i('Lesson plan generated successfully. pdf_url: \$_pdfUrl');
+        _pdfUrl = (response['pdf_url'] ?? '').toString();
+        logger.i('Lesson plan generated successfully. pdf_url=$_pdfUrl');
+
+        // Download PDF from dedicated endpoint and keep local file path.
+        final chapterName = chapterNames.isNotEmpty ? chapterNames.first : '';
+        final headingNames = chapterNames.length > 1 ? chapterNames.sublist(1) : <String>[];
+        final pdfResponse = await ApiService.generateLessonPlanPdf(
+          bookId: bookName,
+          chapterId: chapterName,
+          headingIds: headingNames,
+          chapterName: chapterName,
+          headingName: headingNames.isNotEmpty ? headingNames.first : chapterName,
+          limit: 10,
+        );
+
+        if (pdfResponse.status && pdfResponse.data is Map<String, dynamic>) {
+          final pdfData = pdfResponse.data as Map<String, dynamic>;
+          _localPdfPath = (pdfData['file_path'] ?? '').toString();
+        } else {
+          _errorMessage = pdfResponse.message;
+          logger.e('Lesson plan PDF download failed: ${pdfResponse.message}');
+        }
       } else {
         _errorMessage = 'Failed to generate lesson plan. Please try again.';
         logger.e('Empty response from AI service');
@@ -115,15 +135,17 @@ class LessonPlanViewModel extends ChangeNotifier {
     return buffer.toString();
   }
 
-  void setLocalPdfPath(String path) {
-    _localPdfPath = path;
-    notifyListeners();
-  }
-
   // Clear the generated lesson plan
   void clearLessonPlan() {
     _generatedLessonPlan = null;
     _errorMessage = '';
+    _pdfUrl = '';
+    _localPdfPath = '';
+    notifyListeners();
+  }
+
+  void setLocalPdfPath(String path) {
+    _localPdfPath = path;
     notifyListeners();
   }
 

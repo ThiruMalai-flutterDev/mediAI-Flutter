@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -2464,6 +2465,97 @@ class ApiService {
     } catch (e) {
       logger.e('Lesson plan generation error: $e');
       return null;
+    }
+  }
+
+  /// Generate and download lesson plan PDF
+  static Future<ApiResponse> generateLessonPlanPdf({
+    required String bookId,
+    required String chapterId,
+    required List<String> headingIds,
+    required String chapterName,
+    required String headingName,
+    int limit = 10,
+  }) async {
+    try {
+      final payload = {
+        "book_id": bookId,
+        "chapter_ids": chapterId,
+        "heading_ids": headingIds,
+        "chapter_name": chapterName,
+        "heading_name": headingName,
+        "limit": limit,
+      };
+
+      logger.w('Lesson plan PDF payload: $payload');
+
+      final response = await _dio.post(
+        '${UrlServices.BASE_URL}/${UrlServices.LESSON_PLAN_PDF}',
+        data: payload,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/pdf',
+          },
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => status != null && status < 600,
+        ),
+      );
+
+      if (response.statusCode != 200 || response.data == null) {
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: response.statusCode ?? 500,
+          status: false,
+          message: 'Failed to generate lesson plan PDF.',
+          data: null,
+        );
+      }
+
+      if (response.data is! List<int>) {
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: response.statusCode ?? 500,
+          status: false,
+          message: 'Server did not return a valid PDF file.',
+          data: null,
+        );
+      }
+
+      final bytes = response.data as List<int>;
+      final tempDir = await getTemporaryDirectory();
+      final fileName =
+          'lesson_plan_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filePath = '${tempDir.path}/$fileName';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes, flush: true);
+
+      return ApiResponse(
+        version: '0',
+        validationErrors: [],
+        code: 200,
+        status: true,
+        message: 'Lesson plan PDF downloaded successfully.',
+        data: {
+          'file_path': filePath,
+          'file_name': fileName,
+          'size': bytes.length,
+        },
+      );
+    } on DioException catch (dioErr) {
+      return _handleDioError(dioErr);
+    } catch (e, st) {
+      logger.e('Lesson plan PDF generation error: $e\n$st');
+      return ApiResponse(
+        version: '0',
+        validationErrors: [],
+        code: -1,
+        status: false,
+        message: 'Failed to download lesson plan PDF.',
+        data: null,
+      );
     }
   }
 

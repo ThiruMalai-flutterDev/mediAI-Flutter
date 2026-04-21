@@ -23,7 +23,7 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ExamViewModel>().loadExams();
     });
-    
+
     // Start timer to refresh exam status every minute
     _startStatusTimer();
   }
@@ -49,9 +49,9 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             textTheme: Theme.of(context).textTheme.apply(
-              bodyColor: Colors.black,
-              displayColor: Colors.black,
-            ),
+                  bodyColor: Colors.black,
+                  displayColor: Colors.black,
+                ),
             iconTheme: const IconThemeData(color: Colors.black),
           ),
           child: Padding(
@@ -71,7 +71,8 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, size: 48.sp, color: Colors.red),
+                          Icon(Icons.error_outline,
+                              size: 48.sp, color: Colors.red),
                           SizedBox(height: 2.h),
                           Text(
                             vm.error!,
@@ -124,7 +125,8 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
         ),
         SizedBox(width: 3.w),
         Tooltip(
-          message: _useTableView ? 'Switch to card view' : 'Switch to table view',
+          message:
+              _useTableView ? 'Switch to card view' : 'Switch to table view',
           child: InkWell(
             onTap: () => setState(() => _useTableView = !_useTableView),
             borderRadius: BorderRadius.circular(12),
@@ -134,7 +136,9 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(_useTableView ? Icons.view_agenda_outlined : Icons.table_chart_outlined),
+              child: Icon(_useTableView
+                  ? Icons.view_agenda_outlined
+                  : Icons.table_chart_outlined),
             ),
           ),
         ),
@@ -162,7 +166,7 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
         SizedBox(height: 1.h),
         Center(
           child: Text(
-            vm.isLoading 
+            vm.isLoading
                 ? 'Please wait while we fetch your exams'
                 : 'Create your first exam to get started',
             style: TextStyle(
@@ -196,72 +200,29 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
-        constraints: BoxConstraints(minWidth: 180.w),
+        constraints: BoxConstraints(minWidth: 100.w),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           primary: true,
           child: DataTable(
-            headingTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+            headingTextStyle: const TextStyle(
+                color: Colors.black, fontWeight: FontWeight.w600),
             dataTextStyle: const TextStyle(color: Colors.black),
             columns: const [
-              DataColumn(label: Text('Exam Name', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Book', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Start Time', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('End Time', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Duration', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Questions', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Total Marks', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Status', style: TextStyle(color: Colors.black))),
-              DataColumn(label: Text('Actions', style: TextStyle(color: Colors.black))),
+              DataColumn(
+                  label:
+                      Text('Exam Name', style: TextStyle(color: Colors.black))),
+              DataColumn(
+                  label:
+                      Text('Book Name', style: TextStyle(color: Colors.black))),
             ],
             rows: exams.map((exam) {
               return DataRow(
                 cells: [
-                  DataCell(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          exam.examName,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        if (exam.description.isNotEmpty)
-                          Text(
-                            exam.description,
-                            style: TextStyle(
-                              fontSize: 10.sp,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  DataCell(Text(exam.bookName)),
-                  DataCell(Text(exam.formattedStartTime)),
-                  DataCell(Text(exam.formattedEndTime)),
-                  DataCell(Text(exam.durationText)),
-                  DataCell(Text('${exam.totalQuestions}')),
-                  DataCell(Text('${exam.totalMarks.toInt()}')),
-                  DataCell(
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
-                      decoration: BoxDecoration(
-                        color: exam.statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: exam.statusColor.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        exam.statusText,
-                        style: TextStyle(
-                          color: exam.statusColor,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 10.sp,
-                        ),
-                      ),
-                    ),
-                  ),
-                  DataCell(_buildActionButtons(exam, vm)),
+                  DataCell(Text(exam.examName,
+                      style: const TextStyle(color: Colors.black))),
+                  DataCell(Text(exam.bookName,
+                      style: const TextStyle(color: Colors.black))),
                 ],
               );
             }).toList(),
@@ -271,63 +232,10 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
     );
   }
 
-  Widget _buildActionButtons(Exam exam, ExamViewModel vm) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (exam.status == ExamStatus.live)
-          ElevatedButton(
-            onPressed: () => _handleTakeTest(exam, vm),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
-              minimumSize: Size.zero,
-            ),
-            child: Text(
-              'Take Test',
-              style: TextStyle(fontSize: 10.sp, color: Colors.white),
-            ),
-          )
-        else if (exam.status == ExamStatus.upcoming)
-          Text(
-            'Starts ${exam.timeUntilStart}',
-            style: TextStyle(
-              fontSize: 10.sp,
-              color: Colors.blue,
-              fontWeight: FontWeight.w500,
-            ),
-          )
-        else if (exam.status == ExamStatus.expired)
-          Text(
-            'Expired',
-            style: TextStyle(
-              fontSize: 10.sp,
-              color: Colors.red,
-              fontWeight: FontWeight.w500,
-            ),
-          )
-        else if (exam.status == ExamStatus.completed)
-          ElevatedButton(
-            onPressed: () => _showExamResults(exam),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
-              minimumSize: Size.zero,
-            ),
-            child: Text(
-              'View Results',
-              style: TextStyle(fontSize: 10.sp, color: Colors.white),
-            ),
-          ),
-      ],
-    );
-  }
-
-
   void _handleTakeTest(Exam exam, ExamViewModel vm) {
     // Double-check status before allowing exam start
     final currentStatus = exam.status;
-    
+
     if (currentStatus == ExamStatus.live) {
       showDialog(
         context: context,
@@ -365,7 +273,8 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
       String message;
       switch (currentStatus) {
         case ExamStatus.upcoming:
-          message = 'Exam has not started yet. It will begin ${exam.timeUntilStart}.';
+          message =
+              'Exam has not started yet. It will begin ${exam.timeUntilStart}.';
           break;
         case ExamStatus.expired:
           message = 'This exam has expired and is no longer available.';
@@ -376,7 +285,7 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
         default:
           message = 'This exam is not available at the moment.';
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
@@ -405,7 +314,8 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
           children: [
             Text('Total Marks: ${exam.totalMarks.toInt()}'),
             Text('Obtained Marks: ${exam.obtainedMarks?.toInt() ?? 0}'),
-            Text('Percentage: ${((exam.obtainedMarks ?? 0) / exam.totalMarks * 100).toStringAsFixed(1)}%'),
+            Text(
+                'Percentage: ${((exam.obtainedMarks ?? 0) / exam.totalMarks * 100).toStringAsFixed(1)}%'),
             Text('Completed At: ${exam.completedAt?.toString() ?? 'N/A'}'),
           ],
         ),
@@ -418,7 +328,6 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
       ),
     );
   }
-
 }
 
 class _ExamCard extends StatelessWidget {
@@ -449,6 +358,14 @@ class _ExamCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        'ID: ${exam.id}',
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      SizedBox(height: 0.4.h),
+                      Text(
                         exam.examName,
                         style: TextStyle(
                           fontSize: 16.sp,
@@ -470,11 +387,13 @@ class _ExamCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
                   decoration: BoxDecoration(
                     color: exam.statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: exam.statusColor.withOpacity(0.3)),
+                    border:
+                        Border.all(color: exam.statusColor.withOpacity(0.3)),
                   ),
                   child: Text(
                     exam.statusText,
@@ -493,8 +412,65 @@ class _ExamCard extends StatelessWidget {
                 Expanded(
                   child: _InfoItem(
                     icon: Icons.book,
-                    label: 'Book',
+                    label: 'Book Name',
                     value: exam.bookName,
+                  ),
+                ),
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.calendar_today,
+                    label: 'Date',
+                    value: _formatDate(exam.date),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 1.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.quiz,
+                    label: 'Total Questions',
+                    value: '${exam.totalQuestions}',
+                  ),
+                ),
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.speed,
+                    label: 'Marks per Question',
+                    value: exam.marksPerQuestion.toStringAsFixed(2),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 1.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.grade,
+                    label: 'Total Marks',
+                    value: exam.totalMarks.toStringAsFixed(2),
+                  ),
+                ),
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.play_arrow,
+                    label: 'Start Time',
+                    value: exam.startTimeOnly,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 1.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.stop,
+                    label: 'End Time',
+                    value: exam.endTimeOnly,
                   ),
                 ),
                 Expanded(
@@ -506,50 +482,13 @@ class _ExamCard extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 1.h),
-            Row(
-              children: [
-                Expanded(
-                  child: _InfoItem(
-                    icon: Icons.quiz,
-                    label: 'Questions',
-                    value: '${exam.totalQuestions}',
-                  ),
-                ),
-                Expanded(
-                  child: _InfoItem(
-                    icon: Icons.grade,
-                    label: 'Total Marks',
-                    value: '${exam.totalMarks.toInt()}',
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 1.h),
-            Row(
-              children: [
-                Expanded(
-                  child: _InfoItem(
-                    icon: Icons.play_arrow,
-                    label: 'Start Time',
-                    value: exam.formattedStartTime,
-                  ),
-                ),
-                Expanded(
-                  child: _InfoItem(
-                    icon: Icons.stop,
-                    label: 'End Time',
-                    value: exam.formattedEndTime,
-                  ),
-                ),
-              ],
-            ),
             if (exam.status == ExamStatus.completed) ...[
               SizedBox(height: 1.h),
               _InfoItem(
                 icon: Icons.check_circle,
                 label: 'Obtained Marks',
-                value: '${exam.obtainedMarks?.toInt() ?? 0}/${exam.totalMarks.toInt()}',
+                value:
+                    '${exam.obtainedMarks?.toInt() ?? 0}/${exam.totalMarks.toInt()}',
               ),
             ],
             SizedBox(height: 2.h),
@@ -567,7 +506,8 @@ class _ExamCard extends StatelessWidget {
                         ),
                       ),
                       icon: const Icon(Icons.play_arrow, color: Colors.white),
-                      label: const Text('Take Test', style: TextStyle(color: Colors.white)),
+                      label: const Text('Take Test',
+                          style: TextStyle(color: Colors.white)),
                     ),
                   )
                 else if (exam.status == ExamStatus.completed)
@@ -582,7 +522,8 @@ class _ExamCard extends StatelessWidget {
                         ),
                       ),
                       icon: const Icon(Icons.visibility, color: Colors.white),
-                      label: const Text('View Results', style: TextStyle(color: Colors.white)),
+                      label: const Text('View Results',
+                          style: TextStyle(color: Colors.white)),
                     ),
                   )
                 else if (exam.status == ExamStatus.upcoming)
@@ -632,7 +573,10 @@ class _ExamCard extends StatelessWidget {
       ),
     );
   }
+}
 
+String _formatDate(DateTime date) {
+  return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
 }
 
 class _InfoItem extends StatelessWidget {
@@ -678,4 +622,3 @@ class _InfoItem extends StatelessWidget {
     );
   }
 }
-

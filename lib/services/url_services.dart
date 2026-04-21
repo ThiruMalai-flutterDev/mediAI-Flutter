@@ -76,6 +76,8 @@ class UrlServices {
   // Lesson Plan endpoints
   static const String LESSON_PLAN =
       'ai/api/lessons/generate-lesson-plan'; // Generate lesson plan endpoint
+  static const String LESSON_PLAN_PDF =
+      'api/lessons/generate-lesson-plan/pdf'; // Lesson plan PDF endpoint
 
   // Other endpoints
   static const String HEALTH_CHECK = 'api/health';

@@ -26,26 +26,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
 
   List<Widget> get _screens => [
-    const ChatScreen(),
-    BookListScreen(
-      onBooksSelected: () {
-        setState(() {
-          _currentIndex = 0; // Switch to Chat screen
-        });
-      },
-    ),
-    const AIQuestionBuilderScreen(),
-    const OnlineExamScreen(),
-    const LessonPlanScreen(),
-    ChatHistoryScreen(
-      onSessionSelected: () {
-        setState(() {
-          _currentIndex = 0; // Switch to Chat screen
-        });
-      },
-    ),
-    const ProfileScreen(),
-  ];
+        const ChatScreen(),
+        BookListScreen(
+          onBooksSelected: () {
+            setState(() {
+              _currentIndex = 0; // Switch to Chat screen
+            });
+          },
+        ),
+        const AIQuestionBuilderScreen(),
+        const OnlineExamScreen(),
+        const LessonPlanScreen(),
+        ChatHistoryScreen(
+          onSessionSelected: () {
+            setState(() {
+              _currentIndex = 0; // Switch to Chat screen
+            });
+          },
+        ),
+        const ProfileScreen(),
+      ];
 
   @override
   void initState() {
@@ -59,8 +59,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       curve: Curves.elasticOut,
     );
   }
-
-  
 
   @override
   void dispose() {
@@ -84,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
 
           // App bar includes the menu button now
-          
+
           // Navigation Overlay
           NavigationOverlay(
             isVisible: _isNavigationVisible,
@@ -118,8 +116,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  
-
   void _toggleNavigation() {
     setState(() {
       _isNavigationVisible = !_isNavigationVisible;
@@ -143,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isNavigationVisible = false;
     });
     _drawerAnimationController.reverse();
-    
+
     // Handle different menu items
     switch (menuItem) {
       case 'Chat Bot':
@@ -293,5 +289,3 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 }
-
-

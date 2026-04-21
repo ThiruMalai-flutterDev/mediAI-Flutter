@@ -60,7 +60,9 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
         _startTimer();
       } else {
         setState(() {
-          _error = response.message.isNotEmpty ? response.message : 'Failed to load exam data';
+          _error = response.message.isNotEmpty
+              ? response.message
+              : 'Failed to load exam data';
           _isLoading = false;
         });
       }
@@ -79,13 +81,13 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
     final examDate = DateTime.parse(_examData!.date);
     final startTimeParts = _examData!.startTime.split(':');
     final endTimeParts = _examData!.endTime.split(':');
-    
+
     // Parse start and end times
     int startHour = int.parse(startTimeParts[0]);
     int startMinute = int.parse(startTimeParts[1]);
     int endHour = int.parse(endTimeParts[0]);
     int endMinute = int.parse(endTimeParts[1]);
-    
+
     // Create start and end datetime
     DateTime startDateTime = DateTime(
       examDate.year,
@@ -94,7 +96,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
       startHour,
       startMinute,
     );
-    
+
     DateTime endDateTime = DateTime(
       examDate.year,
       examDate.month,
@@ -102,7 +104,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
       endHour,
       endMinute,
     );
-    
+
     // If end time is before start time, it's next day
     if (endDateTime.isBefore(startDateTime)) {
       endDateTime = endDateTime.add(const Duration(days: 1));
@@ -111,7 +113,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
 
     // Calculate total exam duration
     final examDuration = endDateTime.difference(startDateTime);
-    
+
     // Debug logging
     print('DEBUG TIMER:');
     print('  Exam date: $examDate');
@@ -120,7 +122,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
     print('  Start datetime: $startDateTime');
     print('  End datetime: $endDateTime');
     print('  Total exam duration: $examDuration');
-    
+
     // Set the timer to the full exam duration
     _timeRemaining = examDuration;
     print('  Time remaining: $_timeRemaining');
@@ -144,7 +146,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     } else {
@@ -159,7 +161,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
   }
 
   void _nextQuestion() {
-    if (_examData != null && _currentQuestionIndex < _examData!.questions.length - 1) {
+    if (_examData != null &&
+        _currentQuestionIndex < _examData!.questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
       });
@@ -185,20 +188,21 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
       // Calculate score
       int correctAnswers = 0;
       int totalAnswered = _selectedAnswers.length;
-      
+
       print('DEBUG: Total questions: ${_examData!.questions.length}');
       print('DEBUG: Total answered: $totalAnswered');
       print('DEBUG: Selected answers: $_selectedAnswers');
-      
+
       for (final question in _examData!.questions) {
         final selectedOptionId = _selectedAnswers[question.id];
         print('DEBUG: Processing question ${question.id}');
         print('DEBUG: Question text: ${question.questionText}');
         print('DEBUG: Available options:');
         for (final option in question.options) {
-          print('  - Option ${option.id}: "${option.text}" (isCorrect: ${option.isCorrect})');
+          print(
+              '  - Option ${option.id}: "${option.text}" (isCorrect: ${option.isCorrect})');
         }
-        
+
         if (selectedOptionId != null) {
           final selectedOption = question.options.firstWhere(
             (option) => option.id == selectedOptionId,
@@ -211,7 +215,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
               updatedAt: DateTime.now(),
             ),
           );
-          print('DEBUG: Question ${question.id} - Selected option ${selectedOptionId} - Is correct: ${selectedOption.isCorrect}');
+          print(
+              'DEBUG: Question ${question.id} - Selected option ${selectedOptionId} - Is correct: ${selectedOption.isCorrect}');
           print('DEBUG: Selected option text: "${selectedOption.text}"');
           if (selectedOption.isCorrect) {
             correctAnswers++;
@@ -228,7 +233,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
       final totalMarks = double.parse(_examData!.totalMarks);
       final marksPerQuestion = double.parse(_examData!.marksPerQuestion);
       final obtainedMarks = correctAnswers * marksPerQuestion;
-      
+
       print('DEBUG: Correct answers: $correctAnswers');
       print('DEBUG: Total marks: $totalMarks');
       print('DEBUG: Marks per question: $marksPerQuestion');
@@ -247,28 +252,31 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
 
         if (mounted) {
           _hasSubmitted = true; // Mark as submitted
-          
+
           // Mark exam as completed in the view model
-          final examViewModel = Provider.of<ExamViewModel>(context, listen: false);
+          final examViewModel =
+              Provider.of<ExamViewModel>(context, listen: false);
           examViewModel.markExamAsCompleted(widget.exam.id, obtainedMarks);
-          
+
           // Show score dialog first, then navigate back
-          _showScoreDialog(obtainedMarks, totalMarks, correctAnswers, _examData!.questions.length);
-          
+          _showScoreDialog(obtainedMarks, totalMarks, correctAnswers,
+              _examData!.questions.length);
+
           // Navigate back after a short delay to ensure dialog is shown
           Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted) {
               Navigator.of(context).pop(); // Go back to exam list
             }
           });
-          
+
           if (response.status) {
             // Show success message after navigation
             Future.delayed(const Duration(milliseconds: 200), () {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('🎉 Exam submitted successfully!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks/totalMarks)*100).toStringAsFixed(1)}%)'),
+                    content: Text(
+                        '🎉 Exam submitted successfully!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks / totalMarks) * 100).toStringAsFixed(1)}%)'),
                     backgroundColor: Colors.green,
                     duration: const Duration(seconds: 3),
                   ),
@@ -277,12 +285,14 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
             });
           } else {
             // Check if it's a duplicate submission error
-            if (response.message.contains('already submitted') || response.message.contains('duplicate')) {
+            if (response.message.contains('already submitted') ||
+                response.message.contains('duplicate')) {
               Future.delayed(const Duration(milliseconds: 200), () {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('📋 Exam was already submitted!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks/totalMarks)*100).toStringAsFixed(1)}%)'),
+                      content: Text(
+                          '📋 Exam was already submitted!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks / totalMarks) * 100).toStringAsFixed(1)}%)'),
                       backgroundColor: Colors.blue,
                       duration: const Duration(seconds: 3),
                     ),
@@ -294,7 +304,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('💾 Exam completed locally!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks/totalMarks)*100).toStringAsFixed(1)}%)'),
+                      content: Text(
+                          '💾 Exam completed locally!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks / totalMarks) * 100).toStringAsFixed(1)}%)'),
                       backgroundColor: Colors.orange,
                       duration: const Duration(seconds: 3),
                     ),
@@ -308,28 +319,32 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
         // Fallback to local completion if server submission fails
         if (mounted) {
           _hasSubmitted = true; // Mark as submitted even if server failed
-          
+
           // Mark exam as completed in the view model even if server failed
-          final examViewModel = Provider.of<ExamViewModel>(context, listen: false);
+          final examViewModel =
+              Provider.of<ExamViewModel>(context, listen: false);
           examViewModel.markExamAsCompleted(widget.exam.id, obtainedMarks);
-          
+
           // Show score dialog first, then navigate back
-          _showScoreDialog(obtainedMarks, totalMarks, correctAnswers, _examData!.questions.length);
-          
+          _showScoreDialog(obtainedMarks, totalMarks, correctAnswers,
+              _examData!.questions.length);
+
           // Navigate back after a short delay to ensure dialog is shown
           Future.delayed(const Duration(milliseconds: 100), () {
             if (mounted) {
               Navigator.of(context).pop(); // Go back to exam list
             }
           });
-          
+
           // Check if it's a duplicate submission error
-          if (e.toString().contains('already submitted') || e.toString().contains('duplicate')) {
+          if (e.toString().contains('already submitted') ||
+              e.toString().contains('duplicate')) {
             Future.delayed(const Duration(milliseconds: 200), () {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('📋 Exam was already submitted!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks/totalMarks)*100).toStringAsFixed(1)}%)'),
+                    content: Text(
+                        '📋 Exam was already submitted!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks / totalMarks) * 100).toStringAsFixed(1)}%)'),
                     backgroundColor: Colors.blue,
                     duration: const Duration(seconds: 3),
                   ),
@@ -341,7 +356,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('💾 Exam completed locally!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks/totalMarks)*100).toStringAsFixed(1)}%)'),
+                    content: Text(
+                        '💾 Exam completed locally!\nScore: ${obtainedMarks.toInt()}/${totalMarks.toInt()} (${((obtainedMarks / totalMarks) * 100).toStringAsFixed(1)}%)'),
                     backgroundColor: Colors.orange,
                     duration: const Duration(seconds: 3),
                   ),
@@ -381,8 +397,10 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
           children: [
             Text('Are you sure you want to submit the exam?'),
             SizedBox(height: 1.h),
-            Text('Answered: ${_selectedAnswers.length}/${_examData?.questions.length ?? 0}'),
-            Text('Unanswered: ${(_examData?.questions.length ?? 0) - _selectedAnswers.length}'),
+            Text(
+                'Answered: ${_selectedAnswers.length}/${_examData?.questions.length ?? 0}'),
+            Text(
+                'Unanswered: ${(_examData?.questions.length ?? 0) - _selectedAnswers.length}'),
           ],
         ),
         actions: [
@@ -417,16 +435,20 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
           children: [
             const Text('The exam time has expired.'),
             SizedBox(height: 1.h),
-            Text('Answered: ${_selectedAnswers.length}/${_examData?.questions.length ?? 0}'),
-            Text('Unanswered: ${(_examData?.questions.length ?? 0) - _selectedAnswers.length}'),
+            Text(
+                'Answered: ${_selectedAnswers.length}/${_examData?.questions.length ?? 0}'),
+            Text(
+                'Unanswered: ${(_examData?.questions.length ?? 0) - _selectedAnswers.length}'),
             SizedBox(height: 1.h),
             if (_selectedAnswers.isEmpty)
               const Text(
                 '⚠️ No answers were selected. The exam will be submitted with a score of 0.',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                style:
+                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
               )
             else
-              const Text('Your exam will be submitted with your current answers.'),
+              const Text(
+                  'Your exam will be submitted with your current answers.'),
           ],
         ),
         actions: [
@@ -446,7 +468,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
               _submitExam();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: _selectedAnswers.isEmpty ? Colors.red : Colors.orange,
+              backgroundColor:
+                  _selectedAnswers.isEmpty ? Colors.red : Colors.orange,
             ),
             child: Text(
               _selectedAnswers.isEmpty ? 'Submit (Score: 0)' : 'Submit Now',
@@ -458,12 +481,13 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
     );
   }
 
-  void _showScoreDialog(double obtainedMarks, double totalMarks, int correctAnswers, int totalQuestions) {
+  void _showScoreDialog(double obtainedMarks, double totalMarks,
+      int correctAnswers, int totalQuestions) {
     final percentage = (obtainedMarks / totalMarks * 100);
     final incorrectAnswers = _selectedAnswers.length - correctAnswers;
     final unanswered = totalQuestions - _selectedAnswers.length;
     final hasDatabaseIssue = correctAnswers == 0 && _selectedAnswers.isNotEmpty;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
@@ -472,12 +496,20 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
         title: Row(
           children: [
             Icon(
-              hasDatabaseIssue ? Icons.warning : 
-              percentage >= 70 ? Icons.celebration : 
-              percentage >= 50 ? Icons.thumb_up : Icons.thumb_down,
-              color: hasDatabaseIssue ? Colors.orange : 
-                     percentage >= 70 ? Colors.green : 
-                     percentage >= 50 ? Colors.orange : Colors.red,
+              hasDatabaseIssue
+                  ? Icons.warning
+                  : percentage >= 70
+                      ? Icons.celebration
+                      : percentage >= 50
+                          ? Icons.thumb_up
+                          : Icons.thumb_down,
+              color: hasDatabaseIssue
+                  ? Colors.orange
+                  : percentage >= 70
+                      ? Colors.green
+                      : percentage >= 50
+                          ? Colors.orange
+                          : Colors.red,
             ),
             SizedBox(width: 2.w),
             Text(hasDatabaseIssue ? 'Exam Results (Warning)' : 'Exam Results'),
@@ -514,22 +546,28 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
               ),
               SizedBox(height: 2.h),
             ],
-            
+
             // Score circle
             Container(
               width: 100,
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: hasDatabaseIssue ? Colors.orange.withOpacity(0.1) :
-                       percentage >= 70 ? Colors.green.withOpacity(0.1) : 
-                       percentage >= 50 ? Colors.orange.withOpacity(0.1) : 
-                       Colors.red.withOpacity(0.1),
+                color: hasDatabaseIssue
+                    ? Colors.orange.withOpacity(0.1)
+                    : percentage >= 70
+                        ? Colors.green.withOpacity(0.1)
+                        : percentage >= 50
+                            ? Colors.orange.withOpacity(0.1)
+                            : Colors.red.withOpacity(0.1),
                 border: Border.all(
-                  color: hasDatabaseIssue ? Colors.orange :
-                         percentage >= 70 ? Colors.green : 
-                         percentage >= 50 ? Colors.orange : 
-                         Colors.red,
+                  color: hasDatabaseIssue
+                      ? Colors.orange
+                      : percentage >= 70
+                          ? Colors.green
+                          : percentage >= 50
+                              ? Colors.orange
+                              : Colors.red,
                   width: 4,
                 ),
               ),
@@ -542,10 +580,13 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: hasDatabaseIssue ? Colors.orange :
-                               percentage >= 70 ? Colors.green : 
-                               percentage >= 50 ? Colors.orange : 
-                               Colors.red,
+                        color: hasDatabaseIssue
+                            ? Colors.orange
+                            : percentage >= 70
+                                ? Colors.green
+                                : percentage >= 50
+                                    ? Colors.orange
+                                    : Colors.red,
                       ),
                     ),
                     Text(
@@ -570,31 +611,48 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
               child: Column(
                 children: [
                   _ScoreRow(label: 'Total Questions', value: '$totalQuestions'),
-                  _ScoreRow(label: 'Correct Answers', value: '$correctAnswers', valueColor: Colors.green),
-                  _ScoreRow(label: 'Incorrect Answers', value: '$incorrectAnswers', valueColor: Colors.red),
-                  _ScoreRow(label: 'Unanswered', value: '$unanswered', valueColor: Colors.grey),
-                  _ScoreRow(label: 'Marks Obtained', value: '${obtainedMarks.toInt()} / ${totalMarks.toInt()}'),
-                  _ScoreRow(label: 'Percentage', value: '${percentage.toStringAsFixed(1)}%'),
+                  _ScoreRow(
+                      label: 'Correct Answers',
+                      value: '$correctAnswers',
+                      valueColor: Colors.green),
+                  _ScoreRow(
+                      label: 'Incorrect Answers',
+                      value: '$incorrectAnswers',
+                      valueColor: Colors.red),
+                  _ScoreRow(
+                      label: 'Unanswered',
+                      value: '$unanswered',
+                      valueColor: Colors.grey),
+                  _ScoreRow(
+                      label: 'Marks Obtained',
+                      value:
+                          '${obtainedMarks.toInt()} / ${totalMarks.toInt()}'),
+                  _ScoreRow(
+                      label: 'Percentage',
+                      value: '${percentage.toStringAsFixed(1)}%'),
                 ],
               ),
             ),
             SizedBox(height: 1.h),
             // Performance message
             Text(
-              hasDatabaseIssue 
-                ? '⚠️ Please contact administrator about exam configuration'
-                : percentage >= 70 
-                  ? '🎉 Excellent! Well done!' 
-                  : percentage >= 50 
-                    ? '👍 Good effort! Keep practicing!' 
-                    : '📚 Keep studying! You can do better!',
+              hasDatabaseIssue
+                  ? '⚠️ Please contact administrator about exam configuration'
+                  : percentage >= 70
+                      ? '🎉 Excellent! Well done!'
+                      : percentage >= 50
+                          ? '👍 Good effort! Keep practicing!'
+                          : '📚 Keep studying! You can do better!',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: hasDatabaseIssue ? Colors.orange :
-                       percentage >= 70 ? Colors.green : 
-                       percentage >= 50 ? Colors.orange : 
-                       Colors.red,
+                color: hasDatabaseIssue
+                    ? Colors.orange
+                    : percentage >= 70
+                        ? Colors.green
+                        : percentage >= 50
+                            ? Colors.orange
+                            : Colors.red,
               ),
               textAlign: TextAlign.center,
             ),
@@ -612,7 +670,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
             ),
             child: Text(
               'OK',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -690,7 +749,9 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
             padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
             margin: EdgeInsets.only(right: 2.w),
             decoration: BoxDecoration(
-              color: _timeRemaining.inMinutes < 5 ? Colors.red : Colors.white.withOpacity(0.2),
+              color: _timeRemaining.inMinutes < 5
+                  ? Colors.red
+                  : Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -716,24 +777,28 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                   children: [
                     Text(
                       'Question ${_currentQuestionIndex + 1} of ${_examData!.questions.length}',
-                      style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                          fontSize: 14.sp, fontWeight: FontWeight.w500),
                     ),
                     Text(
                       '${_selectedAnswers.length}/${_examData!.questions.length} answered',
-                      style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade600),
+                      style: TextStyle(
+                          fontSize: 12.sp, color: Colors.grey.shade600),
                     ),
                   ],
                 ),
                 SizedBox(height: 1.h),
                 LinearProgressIndicator(
-                  value: (_currentQuestionIndex + 1) / _examData!.questions.length,
+                  value:
+                      (_currentQuestionIndex + 1) / _examData!.questions.length,
                   backgroundColor: Colors.grey.shade300,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
                 ),
               ],
             ),
           ),
-          
+
           // Exam info header - Using preview screen approach
           Container(
             margin: EdgeInsets.symmetric(horizontal: 4.w),
@@ -780,7 +845,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
             ),
           ),
           SizedBox(height: 2.h),
-          
+
           // Question content - Using preview screen approach
           Expanded(
             child: SingleChildScrollView(
@@ -789,11 +854,12 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                 index: _currentQuestionIndex,
                 question: currentQuestion,
                 selectedOptionId: selectedOptionId,
-                onSelected: (optionId) => _selectAnswer(currentQuestion.id, optionId),
+                onSelected: (optionId) =>
+                    _selectAnswer(currentQuestion.id, optionId),
               ),
             ),
           ),
-          
+
           // Navigation buttons - Using preview screen approach
           Container(
             padding: EdgeInsets.all(4.w),
@@ -812,7 +878,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: _currentQuestionIndex > 0 ? _previousQuestion : null,
+                    onPressed:
+                        _currentQuestionIndex > 0 ? _previousQuestion : null,
                     style: OutlinedButton.styleFrom(
                       padding: EdgeInsets.symmetric(vertical: 2.h),
                       shape: RoundedRectangleBorder(
@@ -820,7 +887,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                       ),
                       side: BorderSide(color: AppColors.primaryPurple),
                     ),
-                    child: Text('Previous', style: TextStyle(color: AppColors.primaryPurple)),
+                    child: Text('Previous',
+                        style: TextStyle(color: AppColors.primaryPurple)),
                   ),
                 ),
                 SizedBox(width: 2.w),
@@ -835,7 +903,8 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text('Next', style: TextStyle(color: Colors.white)),
+                      child: const Text('Next',
+                          style: TextStyle(color: Colors.white)),
                     ),
                   )
                 else
@@ -843,7 +912,9 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                     child: ElevatedButton(
                       onPressed: _hasSubmitted ? null : _showSubmitDialog,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _hasSubmitted ? Colors.grey : AppColors.successGreen,
+                        backgroundColor: _hasSubmitted
+                            ? Colors.grey
+                            : AppColors.successGreen,
                         padding: EdgeInsets.symmetric(vertical: 2.h),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -855,11 +926,14 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : Text(
-                              _hasSubmitted ? 'Already Submitted' : 'Submit & Score',
+                              _hasSubmitted
+                                  ? 'Already Submitted'
+                                  : 'Submit & Score',
                               style: const TextStyle(color: Colors.white),
                             ),
                     ),
@@ -930,7 +1004,8 @@ class _ExamQuestionCard extends StatelessWidget {
     // Find the correct option
     final correctOption = question.options.firstWhere(
       (option) => option.isCorrect,
-      orElse: () => question.options.first, // Fallback if no correct option found
+      orElse: () =>
+          question.options.first, // Fallback if no correct option found
     );
 
     return Container(
@@ -961,7 +1036,8 @@ class _ExamQuestionCard extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
                   decoration: BoxDecoration(
                     color: AppColors.primaryPurple,
                     borderRadius: BorderRadius.circular(6),
@@ -995,10 +1071,12 @@ class _ExamQuestionCard extends StatelessWidget {
             Container(
               margin: EdgeInsets.only(bottom: 1.h),
               decoration: BoxDecoration(
-                color: _getOptionBackgroundColor(question.options[i], selectedOptionId, correctOption),
+                color: _getOptionBackgroundColor(
+                    question.options[i], selectedOptionId, correctOption),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _getOptionBorderColor(question.options[i], selectedOptionId, correctOption),
+                  color: _getOptionBorderColor(
+                      question.options[i], selectedOptionId, correctOption),
                   width: 2,
                 ),
               ),
@@ -1013,21 +1091,27 @@ class _ExamQuestionCard extends StatelessWidget {
                         question.options[i].text,
                         style: TextStyle(
                           fontSize: 13.sp,
-                          color: _getOptionTextColor(question.options[i], selectedOptionId, correctOption),
-                          fontWeight: selectedOptionId == question.options[i].id ? FontWeight.w500 : FontWeight.normal,
+                          color: _getOptionTextColor(question.options[i],
+                              selectedOptionId, correctOption),
+                          fontWeight: selectedOptionId == question.options[i].id
+                              ? FontWeight.w500
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
                     // Show feedback icons
                     if (selectedOptionId != null) ...[
                       SizedBox(width: 1.w),
-                      _getFeedbackIcon(question.options[i], selectedOptionId, correctOption),
+                      _getFeedbackIcon(
+                          question.options[i], selectedOptionId, correctOption),
                     ],
                   ],
                 ),
                 dense: true,
-                activeColor: _getOptionBorderColor(question.options[i], selectedOptionId, correctOption),
-                contentPadding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
+                activeColor: _getOptionBorderColor(
+                    question.options[i], selectedOptionId, correctOption),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 2.w, vertical: 0.5.h),
               ),
             ),
           // Show feedback message if an option is selected
@@ -1036,10 +1120,12 @@ class _ExamQuestionCard extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(3.w),
               decoration: BoxDecoration(
-                color: _getFeedbackBackgroundColor(selectedOptionId, correctOption),
+                color: _getFeedbackBackgroundColor(
+                    selectedOptionId, correctOption),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _getFeedbackBorderColor(selectedOptionId, correctOption),
+                  color:
+                      _getFeedbackBorderColor(selectedOptionId, correctOption),
                   width: 1,
                 ),
               ),
@@ -1047,7 +1133,8 @@ class _ExamQuestionCard extends StatelessWidget {
                 children: [
                   Icon(
                     _getFeedbackIconData(selectedOptionId, correctOption),
-                    color: _getFeedbackIconColor(selectedOptionId, correctOption),
+                    color:
+                        _getFeedbackIconColor(selectedOptionId, correctOption),
                     size: 20,
                   ),
                   SizedBox(width: 2.w),
@@ -1056,7 +1143,8 @@ class _ExamQuestionCard extends StatelessWidget {
                       _getFeedbackMessage(selectedOptionId, correctOption),
                       style: TextStyle(
                         fontSize: 12.sp,
-                        color: _getFeedbackTextColor(selectedOptionId, correctOption),
+                        color: _getFeedbackTextColor(
+                            selectedOptionId, correctOption),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1070,11 +1158,12 @@ class _ExamQuestionCard extends StatelessWidget {
     );
   }
 
-  Color _getOptionBackgroundColor(ExamOption option, int? selectedId, ExamOption correctOption) {
+  Color _getOptionBackgroundColor(
+      ExamOption option, int? selectedId, ExamOption correctOption) {
     if (selectedId == null) {
       return Colors.white;
     }
-    
+
     if (option.id == selectedId) {
       // Selected option
       if (option.isCorrect) {
@@ -1086,15 +1175,18 @@ class _ExamQuestionCard extends StatelessWidget {
       // Correct option (not selected)
       return Colors.green.withOpacity(0.05);
     }
-    
+
     return Colors.white;
   }
 
-  Color _getOptionBorderColor(ExamOption option, int? selectedId, ExamOption correctOption) {
+  Color _getOptionBorderColor(
+      ExamOption option, int? selectedId, ExamOption correctOption) {
     if (selectedId == null) {
-      return option.id == selectedId ? AppColors.primaryPurple : Colors.grey.shade200;
+      return option.id == selectedId
+          ? AppColors.primaryPurple
+          : Colors.grey.shade200;
     }
-    
+
     if (option.id == selectedId) {
       // Selected option
       if (option.isCorrect) {
@@ -1106,15 +1198,16 @@ class _ExamQuestionCard extends StatelessWidget {
       // Correct option (not selected)
       return Colors.green;
     }
-    
+
     return Colors.grey.shade200;
   }
 
-  Color _getOptionTextColor(ExamOption option, int? selectedId, ExamOption correctOption) {
+  Color _getOptionTextColor(
+      ExamOption option, int? selectedId, ExamOption correctOption) {
     if (selectedId == null) {
       return Colors.black87;
     }
-    
+
     if (option.id == selectedId) {
       // Selected option
       if (option.isCorrect) {
@@ -1126,13 +1219,14 @@ class _ExamQuestionCard extends StatelessWidget {
       // Correct option (not selected)
       return Colors.green.shade700;
     }
-    
+
     return Colors.black87;
   }
 
-  Widget _getFeedbackIcon(ExamOption option, int? selectedId, ExamOption correctOption) {
+  Widget _getFeedbackIcon(
+      ExamOption option, int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return const SizedBox.shrink();
-    
+
     if (option.id == selectedId) {
       if (option.isCorrect) {
         return Icon(Icons.check_circle, color: Colors.green, size: 20);
@@ -1142,13 +1236,13 @@ class _ExamQuestionCard extends StatelessWidget {
     } else if (option.id == correctOption.id) {
       return Icon(Icons.check_circle_outline, color: Colors.green, size: 20);
     }
-    
+
     return const SizedBox.shrink();
   }
 
   Color _getFeedbackBackgroundColor(int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return Colors.transparent;
-    
+
     if (selectedId == correctOption.id) {
       return Colors.green.withOpacity(0.1);
     } else {
@@ -1158,7 +1252,7 @@ class _ExamQuestionCard extends StatelessWidget {
 
   Color _getFeedbackBorderColor(int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return Colors.transparent;
-    
+
     if (selectedId == correctOption.id) {
       return Colors.green.withOpacity(0.3);
     } else {
@@ -1168,7 +1262,7 @@ class _ExamQuestionCard extends StatelessWidget {
 
   IconData _getFeedbackIconData(int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return Icons.help_outline;
-    
+
     if (selectedId == correctOption.id) {
       return Icons.check_circle;
     } else {
@@ -1178,7 +1272,7 @@ class _ExamQuestionCard extends StatelessWidget {
 
   Color _getFeedbackIconColor(int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return Colors.grey;
-    
+
     if (selectedId == correctOption.id) {
       return Colors.green;
     } else {
@@ -1188,7 +1282,7 @@ class _ExamQuestionCard extends StatelessWidget {
 
   Color _getFeedbackTextColor(int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return Colors.grey;
-    
+
     if (selectedId == correctOption.id) {
       return Colors.green.shade800;
     } else {
@@ -1198,7 +1292,7 @@ class _ExamQuestionCard extends StatelessWidget {
 
   String _getFeedbackMessage(int? selectedId, ExamOption correctOption) {
     if (selectedId == null) return '';
-    
+
     if (selectedId == correctOption.id) {
       return '🎉 Correct! Well done!';
     } else {

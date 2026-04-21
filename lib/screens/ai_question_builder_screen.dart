@@ -1169,6 +1169,10 @@ class _BookDropdownState extends State<_BookDropdown> {
                 _selectedChapters.remove(chapter);
               }
             });
+            widget.onChaptersChanged?.call([
+              ..._selectedChapters,
+              ..._selectedSubChapters,
+            ]);
           },
           activeColor: AppColors.primaryPurple,
         );
@@ -1208,6 +1212,10 @@ class _BookDropdownState extends State<_BookDropdown> {
                     _selectedChapters.remove(chapter.title);
                   }
                 });
+                widget.onChaptersChanged?.call([
+                  ..._selectedChapters,
+                  ..._selectedSubChapters,
+                ]);
               },
               activeColor: AppColors.primaryPurple,
             ),

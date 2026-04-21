@@ -8,7 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:open_file/open_file.dart';
 import 'dart:io';
 import '../theme/app_colors.dart';
-import '../viewmodels/lesson_plan_view_model.dart';
+import '../viewmodels/lesson_plan_view_model-.dart';
 import '../viewmodels/book_view_model.dart';
 import '../models/book.dart';
 
@@ -80,6 +80,10 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
                 // Generated Lesson Plan
                 if (lessonPlanViewModel.generatedLessonPlan != null)
                   _buildGeneratedPlan(lessonPlanViewModel),
+
+                // PDF Success Message
+                if (lessonPlanViewModel.localPdfPath.isNotEmpty)
+                  _buildSuccessMessage(lessonPlanViewModel.localPdfPath),
 
                 // Error Message
                 if (lessonPlanViewModel.errorMessage.isNotEmpty)
@@ -902,6 +906,51 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
               style: TextStyle(
                 fontSize: 3.5.w,
                 color: Colors.red[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessMessage(String filePath) {
+    return Container(
+      margin: EdgeInsets.only(top: 2.h),
+      padding: EdgeInsets.all(4.w),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: Colors.green[300]!,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle,
+            color: Colors.green[700],
+            size: 5.w,
+          ),
+          SizedBox(width: 3.w),
+          Expanded(
+            child: Text(
+              'PDF downloaded successfully.',
+              style: TextStyle(
+                fontSize: 3.5.w,
+                color: Colors.green[800],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => OpenFile.open(filePath),
+            child: Text(
+              'Open',
+              style: TextStyle(
+                color: AppColors.primaryGradient[0],
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
