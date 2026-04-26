@@ -182,8 +182,12 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                     Text(p.id, style: const TextStyle(color: Colors.black))),
                 DataCell(Text(p.examName,
                     style: const TextStyle(color: Colors.black))),
-                DataCell(Text(p.bookName,
-                    style: const TextStyle(color: Colors.black))),
+                DataCell(Consumer<BookViewModel>(
+                  builder: (context, bookVm, _) => Text(
+                    bookVm.getBookByName(p.bookName)?.title ?? p.bookName,
+                    style: const TextStyle(color: Colors.black),
+                  ),
+                )),
                 DataCell(Text(_formatDate(p.date),
                     style: const TextStyle(color: Colors.black))),
                 DataCell(Text(p.startTime.format(context),
@@ -793,7 +797,12 @@ class _PaperCard extends StatelessWidget {
               ],
             ),
             SizedBox(height: 1.h),
-            _DetailRow(label: 'Book', value: paper.bookName),
+            Consumer<BookViewModel>(
+              builder: (context, bookVm, _) => _DetailRow(
+                label: 'Book',
+                value: bookVm.getBookByName(paper.bookName)?.title ?? paper.bookName,
+              ),
+            ),
             _DetailRow(
                 label: 'Date',
                 value:
@@ -972,9 +981,19 @@ class _BookDropdownState extends State<_BookDropdown> {
     _searchController.text = widget.initial ?? '';
     // Load initial books based on chapter option
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BookViewModel>().loadBooksByChapterMode(
+      final bookVm = context.read<BookViewModel>();
+      bookVm.loadBooksByChapterMode(
             chapterMode: widget.chapterOption == ChapterOption.chapter,
-          );
+          ).then((_) {
+            if (mounted && widget.initial != null) {
+              final book = bookVm.getBookByName(widget.initial!);
+              if (book != null) {
+                setState(() {
+                  _searchController.text = book.title;
+                });
+              }
+            }
+          });
     });
   }
 
@@ -1028,7 +1047,7 @@ class _BookDropdownState extends State<_BookDropdown> {
     }
   }
 
-  void _selectBook(String bookName) {
+  void _selectBook(String bookName, String bookTitle) {
     setState(() {
       _selectedBook = bookName;
       _isSearching = false;
@@ -1036,7 +1055,7 @@ class _BookDropdownState extends State<_BookDropdown> {
       _selectedChapters = [];
       _selectedSubChapters.clear();
     });
-    _searchController.text = bookName;
+    _searchController.text = bookTitle.isNotEmpty ? bookTitle : bookName;
     widget.onChanged(bookName);
     _searchFocusNode.unfocus();
     _loadChapters(bookName);
@@ -1370,7 +1389,7 @@ class _BookDropdownState extends State<_BookDropdown> {
                       //             maxLines: 1,
                       //           )
                       //         : null,
-                      onTap: () => _selectBook(book.bookName),
+                      onTap: () => _selectBook(book.bookName, book.title),
                     );
                   },
                 ),

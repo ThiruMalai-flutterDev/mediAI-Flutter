@@ -1,3 +1,5 @@
+import 'package:dr_jebasingh_onco_ai/viewmodels/book_view_model.dart'
+    show BookViewModel;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
@@ -426,7 +428,7 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
     for (int i = 0; i < totalQuestions; i++) {
       questions.add({
         'question':
-            'Sample medical question ${i + 1} about ${widget.paper?.bookName ?? 'the topic'}?',
+            'Sample medical question ${i + 1} about ${context.read<BookViewModel>().getBookByName(widget.paper?.bookName ?? '')?.title ?? widget.paper?.bookName ?? 'the topic'}?',
         'options': [
           {'text': 'Option A: First possible answer', 'isCorrect': true},
           {'text': 'Option B: Second possible answer', 'isCorrect': false},

@@ -9,6 +9,7 @@ import 'package:cookie_jar/cookie_jar.dart';
 import '../models/api_response.dart';
 import '../services/url_services.dart';
 import '../services/storage_service.dart';
+import '../services/downloads_service.dart';
 import '../utils/logger.dart';
 import '../widgets/common_widgets.dart';
 
@@ -160,7 +161,7 @@ class ApiService {
   static Future<ApiResponse> saveExamWithQuestions(
       Map<String, dynamic> payload) async {
     return await post(
-      endpoint: 'api/generate-questions',
+      endpoint: UrlServices.EXAMS,
       json: payload,
       useAuth: true,
     );
@@ -169,7 +170,7 @@ class ApiService {
   /// Get specific exam by id
   static Future<ApiResponse> getExamById(String examId) async {
     return await get(
-      endpoint: '${UrlServices.GET_EXAM}/$examId',
+      endpoint: '${UrlServices.EXAMS}/$examId',
       params: {},
       useAuth: true,
     );
@@ -862,6 +863,15 @@ class ApiService {
       );
     }
 
+    // Inject user ID to request body
+    final storageService = await StorageService.getInstance();
+    final userId = storageService.getUserId();
+    if (userId != null) {
+      final newJson = Map<String, dynamic>.from(json);
+      newJson['id'] = userId;
+      json = newJson;
+    }
+
     // If auth required but no token
     String? token;
     if (useAuth) {
@@ -1392,6 +1402,15 @@ class ApiService {
       );
     }
 
+    // Inject user ID to request body
+    final storageService = await StorageService.getInstance();
+    final userId = storageService.getUserId();
+    if (userId != null) {
+      final newJson = Map<String, dynamic>.from(json);
+      newJson['id'] = userId;
+      json = newJson;
+    }
+
     String? token;
     if (useAuth) {
       final storageService = await StorageService.getInstance();
@@ -1465,6 +1484,15 @@ class ApiService {
         message: 'Unauthorized request.',
         data: null,
       );
+    }
+
+    // Inject user ID to request body
+    final storageService = await StorageService.getInstance();
+    final userId = storageService.getUserId();
+    if (userId != null) {
+      final newJson = Map<String, dynamic>.from(json);
+      newJson['id'] = userId;
+      json = newJson;
     }
 
     String? token;
@@ -2433,7 +2461,7 @@ class ApiService {
       logger.w('Lesson plan payload: $payload');
 
       final response = await lessonPlanDio.post(
-        '${UrlServices.BASE_URL}/${UrlServices.LESSON_PLAN}',
+        '${UrlServices.BASE_URL}/${UrlServices.LESSON_PLAN_GENERATE}',
         data: payload,
         options: Options(
           headers: {
@@ -2469,13 +2497,18 @@ class ApiService {
   }
 
   /// Generate and download lesson plan PDF
+  /// First gets lesson plan data with pdf_url, then downloads from that URL
+  /// Saves to persistent local storage and maintains downloads list
   static Future<ApiResponse> generateLessonPlanPdf({
     required String bookId,
     required String chapterId,
     required List<String> headingIds,
     required String chapterName,
     required String headingName,
+    required String lessonTitle,
     int limit = 10,
+    Function(int, int)? onProgress,
+    Function(String)? onStatusChange,
   }) async {
     try {
       final payload = {
@@ -2488,49 +2521,136 @@ class ApiService {
       };
 
       logger.w('Lesson plan PDF payload: $payload');
+      onStatusChange?.call('Generating lesson plan...');
 
-      final response = await _dio.post(
-        '${UrlServices.BASE_URL}/${UrlServices.LESSON_PLAN_PDF}',
+      // Step 1: Call lesson plan endpoint to get response with pdf_url
+      final lessonPlanResponse = await _dio.post(
+        '${UrlServices.BASE_URL}/${UrlServices.LESSON_PLAN_GENERATE}',
         data: payload,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/pdf',
+            'Accept': 'application/json',
           },
-          responseType: ResponseType.bytes,
           validateStatus: (status) => status != null && status < 600,
         ),
       );
 
-      if (response.statusCode != 200 || response.data == null) {
+      if (lessonPlanResponse.statusCode != 200 ||
+          lessonPlanResponse.data == null) {
+        onStatusChange?.call('Failed to generate lesson plan');
         return ApiResponse(
           version: '0',
           validationErrors: [],
-          code: response.statusCode ?? 500,
+          code: lessonPlanResponse.statusCode ?? 500,
           status: false,
-          message: 'Failed to generate lesson plan PDF.',
+          message: 'Failed to generate lesson plan.',
           data: null,
         );
       }
 
-      if (response.data is! List<int>) {
+      // Step 2: Extract pdf_url from response
+      final responseData = lessonPlanResponse.data;
+      String? pdfUrl;
+
+      if (responseData is Map && responseData.containsKey('pdf_url')) {
+        pdfUrl = responseData['pdf_url'] as String?;
+      }
+
+      if (pdfUrl == null || pdfUrl.isEmpty) {
+        logger.e(
+            'No pdf_url found in lesson plan response: $responseData');
+        onStatusChange?.call('PDF URL not found');
         return ApiResponse(
           version: '0',
           validationErrors: [],
-          code: response.statusCode ?? 500,
+          code: 400,
+          status: false,
+          message: 'PDF URL not found in server response.',
+          data: null,
+        );
+      }
+
+      logger.i('PDF URL from response: $pdfUrl');
+      onStatusChange?.call('Downloading PDF...');
+
+      // Step 3: Download PDF from the provided URL with progress tracking
+      final downloadUrl =
+          '${UrlServices.BASE_URL}$pdfUrl'; // Construct full URL if relative
+      logger.i('Downloading PDF from: $downloadUrl');
+
+      final pdfResponse = await _dio.get(
+        downloadUrl,
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => status != null && status < 600,
+        ),
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            final progressPercent = ((received / total) * 100).toInt();
+            logger.d('Download progress: $progressPercent%');
+            onProgress?.call(received, total);
+          }
+        },
+      );
+
+      if (pdfResponse.statusCode != 200 || pdfResponse.data == null) {
+        onStatusChange?.call('Failed to download PDF');
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: pdfResponse.statusCode ?? 500,
+          status: false,
+          message: 'Failed to download PDF from URL.',
+          data: null,
+        );
+      }
+
+      if (pdfResponse.data is! List<int>) {
+        onStatusChange?.call('Invalid PDF format');
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: 400,
           status: false,
           message: 'Server did not return a valid PDF file.',
           data: null,
         );
       }
 
-      final bytes = response.data as List<int>;
-      final tempDir = await getTemporaryDirectory();
-      final fileName =
-          'lesson_plan_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final filePath = '${tempDir.path}/$fileName';
+      // Step 4: Save PDF to persistent local storage
+      onStatusChange?.call('Saving to device...');
+      final bytes = pdfResponse.data as List<int>;
+      
+      // Initialize downloads service
+      final downloadsService = DownloadsService.getInstance();
+      await downloadsService.init();
+      
+      // Extract filename from pdf_url or generate one
+      final fileName = pdfUrl.split('/').last.isNotEmpty
+          ? pdfUrl.split('/').last
+          : 'lesson_plan_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      
+      final downloadsPath = downloadsService.downloadsDirPath;
+      final filePath = '$downloadsPath/$fileName';
       final file = File(filePath);
       await file.writeAsBytes(bytes, flush: true);
+
+      logger.i(
+          'PDF saved successfully to: $filePath (${bytes.length} bytes)');
+
+      // Step 5: Track download in downloads list
+      await downloadsService.addDownload(
+        fileName: fileName,
+        filePath: filePath,
+        originalUrl: downloadUrl,
+        fileSize: bytes.length,
+        title: lessonTitle,
+        bookName: bookId,
+        chapterName: chapterName,
+      );
+
+      onStatusChange?.call('Download completed');
 
       return ApiResponse(
         version: '0',
@@ -2542,12 +2662,18 @@ class ApiService {
           'file_path': filePath,
           'file_name': fileName,
           'size': bytes.length,
+          'pdf_url': pdfUrl,
+          'download_id': DateTime.now().millisecondsSinceEpoch.toString(),
+          'downloaded_at': DateTime.now().toIso8601String(),
         },
       );
     } on DioException catch (dioErr) {
+      logger.e('Lesson plan PDF download error: $dioErr');
+      onStatusChange?.call('Download failed: ${dioErr.message}');
       return _handleDioError(dioErr);
     } catch (e, st) {
       logger.e('Lesson plan PDF generation error: $e\n$st');
+      onStatusChange?.call('Error: $e');
       return ApiResponse(
         version: '0',
         validationErrors: [],
@@ -2557,6 +2683,51 @@ class ApiService {
         data: null,
       );
     }
+  }
+
+  /// Get all lesson plans
+  static Future<ApiResponse> getLessonPlans() async {
+    return await get(
+      endpoint: UrlServices.LESSON_PLANS,
+      params: {},
+      useAuth: true,
+    );
+  }
+
+  /// Get lesson plans by date range
+  static Future<ApiResponse> getLessonPlansInRange(String from, String to) async {
+    return await get(
+      endpoint: UrlServices.LESSON_PLANS_RANGE,
+      params: {'from': from, 'to': to},
+      useAuth: true,
+    );
+  }
+
+  /// Create lesson plan
+  static Future<ApiResponse> createLessonPlan(Map<String, dynamic> payload) async {
+    return await post(
+      endpoint: UrlServices.LESSON_PLANS,
+      json: payload,
+      useAuth: true,
+    );
+  }
+
+  /// Update lesson plan
+  static Future<ApiResponse> updateLessonPlan(int id, Map<String, dynamic> payload) async {
+    return await put(
+      endpoint: '${UrlServices.LESSON_PLANS}/$id',
+      json: payload,
+      useAuth: true,
+    );
+  }
+
+  /// Delete lesson plan
+  static Future<ApiResponse> deleteLessonPlan(int id) async {
+    return await delete(
+      endpoint: '${UrlServices.LESSON_PLANS}/$id',
+      json: {},
+      useAuth: true,
+    );
   }
 
   /// Get appropriate test data for different endpoints
@@ -2583,5 +2754,61 @@ class ApiService {
       };
     }
     return {};
+  }
+
+  /// ==================== Downloads Management ====================
+
+  /// Initialize downloads service
+  static Future<void> initDownloadsService() async {
+    final downloadsService = DownloadsService.getInstance();
+    await downloadsService.init();
+  }
+
+  /// Get all downloaded PDFs
+  static List<dynamic> getAllDownloads() {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.getAllDownloads();
+  }
+
+  /// Get downloads for a specific book
+  static List<dynamic> getDownloadsByBook(String bookName) {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.getDownloadsByBook(bookName);
+  }
+
+  /// Get download by ID
+  static dynamic? getDownloadById(String id) {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.getDownloadById(id);
+  }
+
+  /// Delete a download
+  static Future<bool> deleteDownload(String id) async {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.deleteDownload(id);
+  }
+
+  /// Get total downloads count
+  static int getDownloadsCount() {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.downloadsCount;
+  }
+
+  /// Get total downloads size in MB
+  static double getTotalDownloadsSizeInMB() {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.totalSizeInMB;
+  }
+
+  /// Get storage information
+  static Future<Map<String, dynamic>> getDownloadsStorageInfo() async {
+    final downloadsService = DownloadsService.getInstance();
+    return downloadsService.getStorageInfo();
+  }
+
+  /// Clear all downloads
+  static Future<void> clearAllDownloads() async {
+    final downloadsService = DownloadsService.getInstance();
+    await downloadsService.clearAllDownloads();
   }
 }

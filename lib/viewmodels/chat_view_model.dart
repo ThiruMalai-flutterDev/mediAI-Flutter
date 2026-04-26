@@ -148,7 +148,8 @@ class ChatViewModel extends BaseViewModel {
   // Start a new chat session with a specific book
   // Creates a new session using /session/new and stores the session_id
   // Deletes old session if exists to maintain clean session lifecycle
-  Future<void> startNewSessionWithBook(String bookName) async {
+  Future<void> startNewSessionWithBook(
+      String bookName, String bookTitle) async {
     setLoading(true);
     clearError();
 
@@ -162,7 +163,7 @@ class ChatViewModel extends BaseViewModel {
 
       // Clear any existing selected books and set the new one
       _selectedBooks.clear();
-      _selectedBooks.add(bookName);
+      _selectedBooks.add(bookTitle);
 
       // Start a new session
       final response = await ApiService.startNewSession();

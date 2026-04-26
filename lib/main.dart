@@ -8,7 +8,7 @@ import 'viewmodels/login_view_model.dart';
 import 'viewmodels/chat_view_model.dart';
 import 'viewmodels/book_view_model.dart';
 import 'viewmodels/ai_question_builder_view_model.dart';
-import 'viewmodels/lesson_plan_view_model-.dart';
+import 'viewmodels/lesson_plan_view_model.dart';
 import 'viewmodels/exam_view_model.dart';
 
 void main() {

@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:open_file/open_file.dart';
 import 'dart:io';
 import '../theme/app_colors.dart';
-import '../viewmodels/lesson_plan_view_model-.dart';
+import '../viewmodels/lesson_plan_view_model.dart';
 import '../viewmodels/book_view_model.dart';
 import '../models/book.dart';
+import '../services/api_service.dart';
+import 'package:intl/intl.dart';
+import '../models/lesson_plan.dart';
+import '../models/exam.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/url_services.dart';
 
 class LessonPlanScreen extends StatefulWidget {
   const LessonPlanScreen({super.key});
@@ -34,66 +38,354 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
   bool _isLoadingBooks = false;
   bool _isLoadingChapters = false;
 
+  // Calendar state
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  bool _showCreationFlow = false;
+
   @override
   void initState() {
     super.initState();
+    _selectedDay = _focusedDay;
     // Defer loading books until after the first frame
     // to avoid calling notifyListeners during the build phase.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadBooks();
+        context.read<LessonPlanViewModel>().fetchAllData();
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Consumer2<LessonPlanViewModel, BookViewModel>(
-        builder: (context, lessonPlanViewModel, bookViewModel, child) {
-          return SingleChildScrollView(
+    return Consumer2<LessonPlanViewModel, BookViewModel>(
+      builder: (context, lessonPlanViewModel, bookViewModel, child) {
+        return Column(
+          children: [
+            _buildCustomHeader(lessonPlanViewModel),
+            Expanded(
+              child: _showCreationFlow
+                  ? _buildCreationFlow(lessonPlanViewModel)
+                  : _buildCalendarView(lessonPlanViewModel),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomHeader(LessonPlanViewModel viewModel) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      color: AppColors.white,
+      child: Row(
+        children: [
+          if (_showCreationFlow)
+            IconButton(
+              icon: Icon(Icons.arrow_back, color: AppColors.primaryGradient[0]),
+              onPressed: () => setState(() => _showCreationFlow = false),
+            ),
+          Expanded(
+            child: Text(
+              _showCreationFlow ? 'Create Lesson Plan' : 'Lesson Planner',
+              style: TextStyle(
+                color: AppColors.primaryGradient[0],
+                fontWeight: FontWeight.bold,
+                fontSize: 5.w,
+              ),
+              textAlign: _showCreationFlow ? TextAlign.center : TextAlign.start,
+            ),
+          ),
+          if (!_showCreationFlow)
+            TextButton.icon(
+              onPressed: () => setState(() => _showCreationFlow = true),
+              icon: Icon(Icons.add, color: AppColors.primaryGradient[0]),
+              label: Text(
+                'Create',
+                style: TextStyle(color: AppColors.primaryGradient[0]),
+              ),
+            ),
+          if (_showCreationFlow) const SizedBox(width: 48), // Balance for back button
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarView(LessonPlanViewModel viewModel) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 800),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildCalendar(viewModel),
+              const Divider(),
+              _buildLessonPlanList(viewModel),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreationFlow(LessonPlanViewModel lessonPlanViewModel) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 800),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(4.w),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Book Selection Section
+              _buildBookSelectionSection(),
+
+              SizedBox(height: 4.h),
+
+              // Chapter Selection Section
+              if (_selectedBook != null) _buildChapterSelectionSection(),
+
+              SizedBox(height: 4.h),
+
+              // Date Selection Section
+              if (_selectedBook != null)
+                _buildDateSelectionSection(lessonPlanViewModel),
+
+              SizedBox(height: 4.h),
+
+              // Generate Button
+              _buildGenerateButton(lessonPlanViewModel),
+
+              SizedBox(height: 4.h),
+
+              // Generated Lesson Plan
+              if (lessonPlanViewModel.generatedLessonPlan != null)
+                _buildGeneratedPlan(lessonPlanViewModel),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCalendar(LessonPlanViewModel viewModel) {
+    return TableCalendar<dynamic>(
+      firstDay: DateTime.utc(2020, 1, 1),
+      lastDay: DateTime.utc(2030, 12, 31),
+      focusedDay: _focusedDay,
+      calendarFormat: _calendarFormat,
+      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+      onDaySelected: (selectedDay, focusedDay) {
+        setState(() {
+          _selectedDay = selectedDay;
+          _focusedDay = focusedDay;
+        });
+      },
+      onFormatChanged: (format) {
+        setState(() {
+          _calendarFormat = format;
+        });
+      },
+      eventLoader: (day) {
+        return _getEventsForDay(day, viewModel.lessonPlans, viewModel.exams);
+      },
+      calendarStyle: CalendarStyle(
+        selectedDecoration: BoxDecoration(
+          color: AppColors.primaryGradient[0],
+          shape: BoxShape.circle,
+        ),
+        todayDecoration: BoxDecoration(
+          color: AppColors.primaryGradient[0].withOpacity(0.3),
+          shape: BoxShape.circle,
+        ),
+        markerDecoration: BoxDecoration(
+          color: AppColors.primaryGradient[1],
+          shape: BoxShape.circle,
+        ),
+      ),
+      headerStyle: HeaderStyle(
+        formatButtonVisible: true,
+        titleCentered: true,
+        formatButtonDecoration: BoxDecoration(
+          color: AppColors.primaryGradient[0],
+          borderRadius: BorderRadius.circular(20),
+        ),
+        formatButtonTextStyle: const TextStyle(color: Colors.white),
+      ),
+    );
+  }
+
+  List<dynamic> _getEventsForDay(
+      DateTime day, List<LessonPlan> allPlans, List<Exam> allExams) {
+    final List<dynamic> events = [];
+
+    // Add lesson plans
+    events.addAll(allPlans.where((plan) {
+      try {
+        final from = DateTime.parse(plan.fromDate);
+        final to = DateTime.parse(plan.toDate);
+        final checkDay = DateTime(day.year, day.month, day.day);
+        final fromDay = DateTime(from.year, from.month, from.day);
+        final toDay = DateTime(to.year, to.month, to.day);
+        return (checkDay.isAfter(fromDay) ||
+                checkDay.isAtSameMomentAs(fromDay)) &&
+            (checkDay.isBefore(toDay) || checkDay.isAtSameMomentAs(toDay));
+      } catch (_) {
+        return false;
+      }
+    }));
+
+    // Add exams
+    events.addAll(allExams.where((exam) {
+      final checkDay = DateTime(day.year, day.month, day.day);
+      final examDay = DateTime(exam.startDateTime.year,
+          exam.startDateTime.month, exam.startDateTime.day);
+      return checkDay.isAtSameMomentAs(examDay);
+    }));
+
+    return events;
+  }
+
+  Widget _buildLessonPlanList(LessonPlanViewModel viewModel) {
+    final events = _getEventsForDay(
+        _selectedDay ?? _focusedDay, viewModel.lessonPlans, viewModel.exams);
+
+    if (events.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.all(8.w),
+        child: Column(
+          children: [
+            Icon(Icons.event_busy, size: 12.w, color: Colors.grey[300]),
+            SizedBox(height: 2.h),
+            Text(
+              'No lesson plans for this day',
+              style: TextStyle(color: Colors.grey[500], fontSize: 4.w),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: events.length,
+      itemBuilder: (context, index) {
+        final event = events[index];
+        if (event is LessonPlan) {
+          return _buildPlanItem(event, viewModel);
+        } else if (event is Exam) {
+          return _buildExamItem(event);
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  Widget _buildExamItem(Exam exam) {
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      color: Colors.blue[50],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: ListTile(
+        leading: const Icon(Icons.assignment, color: Colors.blue),
+        title: Text(
+          exam.examName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+            'Exam • ${exam.startTimeOnly} - ${exam.endTimeOnly}\nBook: ${exam.bookName}'),
+        isThreeLine: true,
+      ),
+    );
+  }
+
+  Widget _buildPlanItem(LessonPlan plan, LessonPlanViewModel viewModel) {
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: ExpansionTile(
+        title: Text(
+          plan.bookName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text('${plan.chapterName}'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue),
+              onPressed: () => _editLessonPlanDates(plan, viewModel),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => viewModel.deleteLessonPlan(plan.id!),
+            ),
+          ],
+        ),
+        children: [
+          Padding(
             padding: EdgeInsets.all(4.w),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Section
-                _buildHeaderSection(),
-
-                SizedBox(height: 4.h),
-
-                // Book Selection Section
-                _buildBookSelectionSection(),
-
-                SizedBox(height: 4.h),
-
-                // Chapter Selection Section
-                if (_selectedBook != null) _buildChapterSelectionSection(),
-
-                SizedBox(height: 4.h),
-
-                // Generate Button
-                _buildGenerateButton(lessonPlanViewModel),
-
-                SizedBox(height: 4.h),
-
-                // Generated Lesson Plan
-                if (lessonPlanViewModel.generatedLessonPlan != null)
-                  _buildGeneratedPlan(lessonPlanViewModel),
-
-                // PDF Success Message
-                if (lessonPlanViewModel.localPdfPath.isNotEmpty)
-                  _buildSuccessMessage(lessonPlanViewModel.localPdfPath),
-
-                // Error Message
-                if (lessonPlanViewModel.errorMessage.isNotEmpty)
-                  _buildErrorMessage(lessonPlanViewModel.errorMessage),
+                Text('Date: ${plan.fromDate} to ${plan.toDate}'),
+                SizedBox(height: 1.h),
+                if (plan.content != null) ...[
+                  const Text('Content:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(plan.content!),
+                ],
+                if (plan.pdfUrl != null)
+                  ElevatedButton.icon(
+                    onPressed: () => _openPdf(plan.pdfUrl!),
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text('View PDF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGradient[0],
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _editLessonPlanDates(
+      LessonPlan plan, LessonPlanViewModel viewModel) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: DateTimeRange(
+        start: DateTime.parse(plan.fromDate),
+        end: DateTime.parse(plan.toDate),
+      ),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+
+    if (picked != null) {
+      await viewModel.updateLessonPlanDates(plan.id!, picked.start, picked.end);
+    }
+  }
+
+  Future<void> _openPdf(String url) async {
+    final fullUrl =
+        url.startsWith('http') ? url : '${UrlServices.BASE_URL}$url';
+    final uri = Uri.parse(fullUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch $fullUrl')),
+        );
+      }
+    }
   }
 
   Widget _buildHeaderSection() {
@@ -805,6 +1097,388 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
     );
   }
 
+  Widget _buildDateSelectionSection(LessonPlanViewModel viewModel) {
+    return Container(
+      padding: EdgeInsets.all(4.w),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: AppColors.primaryGradient[0].withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_today,
+                color: AppColors.primaryGradient[0],
+                size: 5.w,
+              ),
+              SizedBox(width: 3.w),
+              Text(
+                'Select Date Range',
+                style: TextStyle(
+                  fontSize: 4.5.w,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryGradient[0],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 3.h),
+          Row(
+            children: [
+              Expanded(
+                child: _buildDatePicker(
+                  label: 'From Date',
+                  selectedDate: viewModel.fromDate,
+                  onTap: () => _selectDate(context, viewModel, true),
+                ),
+              ),
+              SizedBox(width: 4.w),
+              Expanded(
+                child: _buildDatePicker(
+                  label: 'To Date',
+                  selectedDate: viewModel.toDate,
+                  onTap: () => _selectDate(context, viewModel, false),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatePicker({
+    required String label,
+    required DateTime? selectedDate,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.5.h),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 3.w,
+                color: Colors.grey[600],
+              ),
+            ),
+            SizedBox(height: 0.5.h),
+            Text(
+              selectedDate != null
+                  ? DateFormat('MMM dd, yyyy').format(selectedDate)
+                  : 'Select Date',
+              style: TextStyle(
+                fontSize: 3.5.w,
+                color: selectedDate != null ? Colors.black87 : Colors.grey[400],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDate(BuildContext context, LessonPlanViewModel viewModel,
+      bool isFromDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: (isFromDate ? viewModel.fromDate : viewModel.toDate) ??
+          DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      confirmText: 'Done',
+      cancelText: 'Cancel',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppColors.borderFocus,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.borderFocus, // Button text color
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      if (isFromDate) {
+        viewModel.setDateRange(picked, viewModel.toDate);
+      } else {
+        viewModel.setDateRange(viewModel.fromDate, picked);
+      }
+    }
+  }
+
+  Widget _buildSavedPlansSection(LessonPlanViewModel viewModel) {
+    if (viewModel.lessonPlans.isEmpty) return SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 1.w),
+          child: Text(
+            'Saved Lesson Plans',
+            style: TextStyle(
+              fontSize: 4.5.w,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryGradient[0],
+            ),
+          ),
+        ),
+        SizedBox(height: 2.h),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: viewModel.lessonPlans.length,
+          itemBuilder: (context, index) {
+            final plan = viewModel.lessonPlans[index];
+            return Container(
+              margin: EdgeInsets.only(bottom: 2.h),
+              padding: EdgeInsets.all(4.w),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.grey[200]!),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 5,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          plan.bookName,
+                          style: TextStyle(
+                            fontSize: 4.w,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.edit, color: Colors.blue, size: 5.w),
+                        onPressed: () =>
+                            _showEditDatesDialog(context, viewModel, plan),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red, size: 5.w),
+                        onPressed: () =>
+                            _confirmDelete(context, viewModel, plan),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    plan.chapterName,
+                    style: TextStyle(
+                      fontSize: 3.5.w,
+                      color: Colors.grey[600],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 1.5.h),
+                  Row(
+                    children: [
+                      Icon(Icons.date_range,
+                          size: 4.w, color: Colors.grey[400]),
+                      SizedBox(width: 2.w),
+                      Text(
+                        '${plan.fromDate} to ${plan.toDate}',
+                        style: TextStyle(
+                          fontSize: 3.w,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showEditDatesDialog(
+      BuildContext context, LessonPlanViewModel viewModel, LessonPlan plan) {
+    DateTime from = DateTime.parse(plan.fromDate);
+    DateTime to = DateTime.parse(plan.toDate);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Edit Dates'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDatePicker(
+                    label: 'From Date',
+                    selectedDate: from,
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: from.isBefore(DateTime(2020))
+                            ? DateTime(2020)
+                            : (from.isAfter(DateTime(2030))
+                                ? DateTime(2030)
+                                : from),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                        confirmText: 'Done',
+                        cancelText: 'Cancel',
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: AppColors.borderFocus,
+                                onPrimary: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                              textButtonTheme: TextButtonThemeData(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.borderFocus,
+                                ),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setDialogState(() => from = picked);
+                      }
+                    },
+                  ),
+                  SizedBox(height: 2.h),
+                  _buildDatePicker(
+                    label: 'To Date',
+                    selectedDate: to,
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: to.isBefore(DateTime(2020))
+                            ? DateTime(2020)
+                            : (to.isAfter(DateTime(2030))
+                                ? DateTime(2030)
+                                : to),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                        confirmText: 'Done',
+                        cancelText: 'Cancel',
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: AppColors.borderFocus,
+                                onPrimary: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                              textButtonTheme: TextButtonThemeData(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.borderFocus,
+                                ),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setDialogState(() => to = picked);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    viewModel.updateLessonPlanDates(plan.id!, from, to);
+                    Navigator.pop(context);
+                  },
+                  child: Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDelete(
+      BuildContext context, LessonPlanViewModel viewModel, LessonPlan plan) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Lesson Plan'),
+        content: Text('Are you sure you want to delete this lesson plan?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              viewModel.deleteLessonPlan(plan.id!);
+              Navigator.pop(context);
+            },
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGeneratedPlan(LessonPlanViewModel viewModel) {
     return Container(
       padding: EdgeInsets.all(4.w),
@@ -836,15 +1510,15 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
                 ),
               ),
               Spacer(),
-              IconButton(
-                onPressed: () =>
-                    _copyToClipboard(viewModel.formattedLessonPlan),
-                icon: Icon(
-                  Icons.copy,
-                  color: AppColors.primaryGradient[0],
-                  size: 4.w,
-                ),
-              ),
+              // IconButton(
+              //   onPressed: () =>
+              //       _copyToClipboard(viewModel.formattedLessonPlan),
+              //   icon: Icon(
+              //     Icons.copy,
+              //     color: AppColors.primaryGradient[0],
+              //     size: 4.w,
+              //   ),
+              // ),
               IconButton(
                 onPressed: () => _downloadAsPDF(viewModel),
                 icon: Icon(
@@ -855,27 +1529,27 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
               ),
             ],
           ),
-          SizedBox(height: 2.h),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(3.w),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.grey[300]!,
-                width: 1,
-              ),
-            ),
-            child: Text(
-              viewModel.formattedLessonPlan,
-              style: TextStyle(
-                fontSize: 3.5.w,
-                color: Colors.black87,
-                height: 1.5,
-              ),
-            ),
-          ),
+          // SizedBox(height: 2.h),
+          // Container(
+          //   width: double.infinity,
+          //   padding: EdgeInsets.all(3.w),
+          //   decoration: BoxDecoration(
+          //     color: AppColors.white,
+          //     borderRadius: BorderRadius.circular(10),
+          //     border: Border.all(
+          //       color: Colors.grey[300]!,
+          //       width: 1,
+          //     ),
+          //   ),
+          //   child: Text(
+          //     viewModel.formattedLessonPlan,
+          //     style: TextStyle(
+          //       fontSize: 3.5.w,
+          //       color: Colors.black87,
+          //       height: 1.5,
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -1020,6 +1694,8 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
   }
 
   void _generateLessonPlan() {
+    final viewModel = context.read<LessonPlanViewModel>();
+
     // Combine selected chapters and sub-chapters
     final allSelectedItems = [..._selectedChapters, ..._selectedSubChapters];
 
@@ -1033,10 +1709,60 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
       return;
     }
 
-    context.read<LessonPlanViewModel>().generateLessonPlan(
-          bookName: _selectedBook!,
-          chapterNames: allSelectedItems,
+    if (viewModel.fromDate == null || viewModel.toDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a date range'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final book = _availableBooks.firstWhere((b) => b.bookName == _selectedBook);
+
+    // Find IDs for selected items
+    List<String> chapterIds = [];
+    for (var chapterTitle in _selectedChapters) {
+      final chapter = book.children.firstWhere((c) => c.title == chapterTitle,
+          orElse: () => BookChild(id: '', title: '', type: ''));
+      if (chapter.id.isNotEmpty) chapterIds.add(chapter.id);
+    }
+
+    List<String> subChapterIds = [];
+    for (var subTitle in _selectedSubChapters) {
+      // Search in all chapters' children
+      for (var chapter in book.children) {
+        final sub = chapter.children.firstWhere((s) => s.title == subTitle,
+            orElse: () => BookChild(id: '', title: '', type: ''));
+        if (sub.id.isNotEmpty) {
+          subChapterIds.add(sub.id);
+          break;
+        }
+      }
+    }
+
+    viewModel
+        .generateLessonPlan(
+      bookId: _selectedBook!,
+      bookName: book.title,
+      chapterNames: allSelectedItems,
+      chapterIds: chapterIds,
+      // Pass subChapterIds if needed by the viewmodel (optional)
+    )
+        .then((_) {
+      if (viewModel.errorMessage.isEmpty) {
+        setState(() {
+          _showCreationFlow = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lesson plan generated and saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
         );
+      }
+    });
   }
 
   void _copyToClipboard(String text) {
@@ -1061,323 +1787,261 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
         return;
       }
 
-      // Show loading dialog
+      // State variables for download tracking
+      ValueNotifier<int> downloadedBytesNotifier = ValueNotifier(0);
+      ValueNotifier<int> totalBytesNotifier = ValueNotifier(0);
+      ValueNotifier<String> statusNotifier = ValueNotifier('Preparing...');
+
+      // Show download progress dialog
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AppColors.primaryGradient[0]),
-              ),
-              SizedBox(width: 4.w),
-              Text('Generating PDF...'),
-            ],
-          ),
-        ),
-      );
+          title: Text('Downloading Lesson Plan'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 2.h),
 
-      // Create PDF document
-      final pdf = pw.Document();
-      final lessonPlan = viewModel.generatedLessonPlan!['lesson_plan'];
-
-      // Define a common text style
-      final textStyle = pw.TextStyle(
-        fontSize: 11,
-      );
-
-      final headerStyle = pw.TextStyle(
-        fontSize: 16,
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.blue700,
-      );
-
-      final titleStyle = pw.TextStyle(
-        fontSize: 24,
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.blue800,
-      );
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.all(40),
-          build: (pw.Context context) {
-            return [
-              // Header
-              pw.Center(
-                child: pw.Text(
-                  'LESSON PLAN',
-                  style: titleStyle,
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // Book and Chapter Info
-              pw.Container(
-                padding: pw.EdgeInsets.all(15),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey300),
-                  borderRadius: pw.BorderRadius.circular(8),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'Book: $_selectedBook',
-                      style: pw.TextStyle(
-                          fontSize: 14, fontWeight: pw.FontWeight.bold),
+                // Status message
+                ValueListenableBuilder<String>(
+                  valueListenable: statusNotifier,
+                  builder: (context, status, _) => Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 3.5.w,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryGradient[0],
                     ),
-                    pw.SizedBox(height: 5),
-                    pw.Text(
-                      'Chapters: ${_selectedChapters.join(', ')}',
-                      style: pw.TextStyle(fontSize: 12),
-                    ),
-                    pw.SizedBox(height: 5),
-                    pw.Text(
-                      'Generated on: ${DateTime.now().toString().split('.')[0]}',
-                      style:
-                          pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-                    ),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // Learning Objectives
-              if (lessonPlan['learning_objectives'] != null) ...[
-                pw.Text(
-                  'LEARNING OBJECTIVES',
-                  style: headerStyle,
-                ),
-                pw.SizedBox(height: 10),
-                ...(lessonPlan['learning_objectives'] as List)
-                    .asMap()
-                    .entries
-                    .map((entry) {
-                  return pw.Padding(
-                    padding: pw.EdgeInsets.only(left: 10, bottom: 5),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          '${entry.key + 1}. ',
-                          style: pw.TextStyle(
-                              fontSize: 11, fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Expanded(
-                          child: pw.Text(
-                            entry.value.toString(),
-                            style: textStyle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                pw.SizedBox(height: 15),
-              ],
-
-              // Key Concepts
-              if (lessonPlan['key_concepts'] != null) ...[
-                pw.Text(
-                  'KEY CONCEPTS',
-                  style: headerStyle,
-                ),
-                pw.SizedBox(height: 10),
-                ...(lessonPlan['key_concepts'] as List)
-                    .asMap()
-                    .entries
-                    .map((entry) {
-                  return pw.Padding(
-                    padding: pw.EdgeInsets.only(left: 10, bottom: 5),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          '- ',
-                          style: pw.TextStyle(
-                              fontSize: 11, fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Expanded(
-                          child: pw.Text(
-                            entry.value.toString(),
-                            style: textStyle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                pw.SizedBox(height: 15),
-              ],
-
-              // Teaching Methodology
-              if (lessonPlan['teaching_methodology'] != null &&
-                  lessonPlan['teaching_methodology'].toString().isNotEmpty) ...[
-                pw.Text(
-                  'TEACHING METHODOLOGY',
-                  style: headerStyle,
-                ),
-                pw.SizedBox(height: 10),
-                pw.Text(
-                  lessonPlan['teaching_methodology'].toString(),
-                  style: textStyle,
-                ),
-                pw.SizedBox(height: 15),
-              ],
-
-              // Assessment Methods
-              if (lessonPlan['assessment_methods'] != null &&
-                  (lessonPlan['assessment_methods'] as List).isNotEmpty) ...[
-                pw.Text(
-                  'ASSESSMENT METHODS',
-                  style: headerStyle,
-                ),
-                pw.SizedBox(height: 10),
-                ...(lessonPlan['assessment_methods'] as List)
-                    .asMap()
-                    .entries
-                    .map((entry) {
-                  return pw.Padding(
-                    padding: pw.EdgeInsets.only(left: 10, bottom: 5),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          '${entry.key + 1}. ',
-                          style: pw.TextStyle(
-                              fontSize: 11, fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Expanded(
-                          child: pw.Text(
-                            entry.value.toString(),
-                            style: textStyle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                pw.SizedBox(height: 15),
-              ],
-
-              // Resources
-              if (lessonPlan['resources'] != null) ...[
-                pw.Text(
-                  'RESOURCES',
-                  style: headerStyle,
-                ),
-                pw.SizedBox(height: 10),
-                ...(lessonPlan['resources'] as List)
-                    .asMap()
-                    .entries
-                    .map((entry) {
-                  return pw.Padding(
-                    padding: pw.EdgeInsets.only(left: 10, bottom: 5),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          '${entry.key + 1}. ',
-                          style: pw.TextStyle(
-                              fontSize: 11, fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Expanded(
-                          child: pw.Text(
-                            entry.value.toString(),
-                            style: textStyle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ],
-
-              // Footer
-              pw.SizedBox(height: 30),
-              pw.Divider(color: PdfColors.grey300),
-              pw.SizedBox(height: 10),
-              pw.Center(
-                child: pw.Text(
-                  'Generated by Dr. Jebasingh Onco AI',
-                  style: pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey600,
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
-            ];
-          },
-        ),
-      );
 
-      // Save PDF to device
-      final output = await getApplicationDocumentsDirectory();
-      final fileName =
-          'lesson_plan_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final file = File('${output.path}/$fileName');
-      await file.writeAsBytes(await pdf.save());
+                SizedBox(height: 2.h),
 
-      // Close loading dialog
-      Navigator.of(context).pop();
+                // Progress bar
+                ValueListenableBuilder<int>(
+                  valueListenable: downloadedBytesNotifier,
+                  builder: (context, downloaded, _) {
+                    return ValueListenableBuilder<int>(
+                      valueListenable: totalBytesNotifier,
+                      builder: (context, total, _) {
+                        return Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: total > 0 ? downloaded / total : 0,
+                                minHeight: 8,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.primaryGradient[0],
+                                ),
+                              ),
+                            ),
 
-      // Show success message with option to open
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            'PDF Downloaded Successfully!',
-            style: TextStyle(
-              fontSize: 4.5.w,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryGradient[0],
+                            SizedBox(height: 1.5.h),
+
+                            // Progress percentage and size
+                            Text(
+                              total > 0
+                                  ? '${(downloaded / total * 100).toStringAsFixed(0)}% - ${(downloaded / 1024 / 1024).toStringAsFixed(2)} MB / ${(total / 1024 / 1024).toStringAsFixed(2)} MB'
+                                  : 'Initializing...',
+                              style: TextStyle(
+                                fontSize: 3.w,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
             ),
-          ),
-          content: Text(
-            'Your lesson plan has been saved as PDF: $fileName',
-            style: TextStyle(fontSize: 3.5.w),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'OK',
-                style: TextStyle(
-                  fontSize: 3.5.w,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await OpenFile.open(file.path);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGradient[0],
-                foregroundColor: AppColors.white,
-              ),
-              child: Text(
-                'Open PDF',
-                style: TextStyle(fontSize: 3.5.w),
-              ),
+              child: Text('Cancel'),
             ),
           ],
         ),
       );
+
+      // Call new API method with progress and status callbacks
+      final response = await ApiService.generateLessonPlanPdf(
+        bookId: _selectedBook ?? 'Unknown',
+        chapterId: _selectedChapters.isNotEmpty ? _selectedChapters.first : '',
+        headingIds: _selectedChapters,
+        chapterName:
+            _selectedChapters.isNotEmpty ? _selectedChapters.join(', ') : '',
+        headingName:
+            _selectedChapters.isNotEmpty ? _selectedChapters.first : '',
+        lessonTitle: 'Lesson Plan - ${_selectedBook ?? 'Lesson'}',
+        limit: 10,
+        onProgress: (received, total) {
+          downloadedBytesNotifier.value = received;
+          totalBytesNotifier.value = total;
+        },
+        onStatusChange: (status) {
+          statusNotifier.value = status;
+        },
+      );
+
+      // Close progress dialog
+      Navigator.of(context).pop();
+
+      if (response.status && response.data != null) {
+        final downloadData = response.data as Map<String, dynamic>;
+        final filePath = downloadData['file_path'] as String?;
+        final fileName = downloadData['file_name'] as String?;
+        final pdfUrl = downloadData['pdf_url'] as String?;
+
+        // Show success message
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 6.w),
+                  SizedBox(width: 2.w),
+                  Expanded(
+                    child: Text(
+                      'Download Successful!',
+                      style: TextStyle(
+                        fontSize: 4.5.w,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'File: $fileName',
+                      style: TextStyle(fontSize: 3.2.w),
+                    ),
+                    SizedBox(height: 1.h),
+                    if (pdfUrl != null)
+                      Container(
+                        padding: EdgeInsets.all(1.5.w),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PDF URL:',
+                              style: TextStyle(
+                                fontSize: 2.8.w,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                            SizedBox(height: 0.5.h),
+                            Text(
+                              pdfUrl,
+                              style: TextStyle(
+                                fontSize: 2.6.w,
+                                color: Colors.orange[600],
+                                fontFamily: 'monospace',
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    SizedBox(height: 1.h),
+                    Container(
+                      padding: EdgeInsets.all(2.w),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Download Details:',
+                            style: TextStyle(
+                              fontSize: 3.2.w,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(height: 0.5.h),
+                          Text(
+                            'Size: ${((downloadData['size'] as int) / 1024 / 1024).toStringAsFixed(2)} MB',
+                            style: TextStyle(fontSize: 3.w),
+                          ),
+                          Text(
+                            'Downloaded: ${downloadData['downloaded_at'] ?? 'Now'}',
+                            style: TextStyle(fontSize: 3.w),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Close'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    if (filePath != null) {
+                      await OpenFile.open(filePath);
+                    }
+                  },
+                  icon: Icon(Icons.open_in_new),
+                  label: Text('Open PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGradient[0],
+                    foregroundColor: AppColors.white,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? 'Download failed'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
     } catch (e) {
-      // Close loading dialog if it's open
+      // Close dialog if open
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error generating PDF: $e'),
+          content: Text('Error downloading PDF: $e'),
           backgroundColor: Colors.red,
         ),
       );

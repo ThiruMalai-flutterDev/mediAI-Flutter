@@ -74,10 +74,14 @@ class UrlServices {
       'ai/api/toggle_books_mode'; // Toggle chapter/non-chapter mode
 
   // Lesson Plan endpoints
-  static const String LESSON_PLAN =
-      'ai/api/lessons/generate-lesson-plan'; // Generate lesson plan endpoint
+  static const String LESSON_PLAN_GENERATE =
+      'ai/api/lessons/generate-lesson-plan'; // AI generation endpoint
   static const String LESSON_PLAN_PDF =
-      'api/lessons/generate-lesson-plan/pdf'; // Lesson plan PDF endpoint
+      'api/lessons/generate-lesson-plan/pdf'; // Lesson plan PDF generation
+  static const String LESSON_PLANS =
+      'api/lesson-plans'; // CRUD endpoint for lesson plans
+  static const String LESSON_PLANS_RANGE =
+      'api/lesson-plans/range'; // Get lesson plans by date range
 
   // Other endpoints
   static const String HEALTH_CHECK = 'api/health';

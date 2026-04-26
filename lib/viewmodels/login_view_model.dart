@@ -79,7 +79,7 @@ class LoginViewModel extends BaseViewModel {
               responseEmail = responseData['email'];
               responseMobileNumber = responseData['mobileNumber']?.toString();
               responseToken = responseData['token'];
-              responseUserId = responseData['userId']?.toString();
+              responseUserId = responseData['id']?.toString() ?? responseData['userId']?.toString();
               isPasswordSet = responseData['isPasswordSet'];
               role = responseData['role'];
             }

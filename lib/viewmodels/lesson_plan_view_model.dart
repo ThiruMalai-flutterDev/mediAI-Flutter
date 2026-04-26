@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
+import '../models/lesson_plan.dart';
+import '../models/exam.dart';
+import 'package:intl/intl.dart';
 
 class LessonPlanViewModel extends ChangeNotifier {
   bool _isLoading = false;
@@ -8,6 +11,11 @@ class LessonPlanViewModel extends ChangeNotifier {
   String _errorMessage = '';
   String _pdfUrl = ''; // server pdf_url from response
   String _localPdfPath = ''; // saved local path after download
+  
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  List<LessonPlan> _lessonPlans = [];
+  List<Exam> _exams = [];
 
   // Getters
   bool get isLoading => _isLoading;
@@ -16,11 +24,24 @@ class LessonPlanViewModel extends ChangeNotifier {
   String get pdfUrl => _pdfUrl;
   String get localPdfPath => _localPdfPath;
   bool get hasPdf => _pdfUrl.isNotEmpty;
+  DateTime? get fromDate => _fromDate;
+  DateTime? get toDate => _toDate;
+  List<LessonPlan> get lessonPlans => _lessonPlans;
+  List<Exam> get exams => _exams;
+
+  // Set date range
+  void setDateRange(DateTime? from, DateTime? to) {
+    _fromDate = from;
+    _toDate = to;
+    notifyListeners();
+  }
 
   // Generate lesson plan using AI
   Future<void> generateLessonPlan({
+    required String bookId,
     required String bookName,
     required List<String> chapterNames,
+    required List<String> chapterIds,
   }) async {
     _isLoading = true;
     _errorMessage = '';
@@ -33,14 +54,26 @@ class LessonPlanViewModel extends ChangeNotifier {
 
       // Call AI service to generate lesson plan
       final response = await ApiService.generateLessonPlan(
-        bookName: bookName,
+        bookName: bookId, // Use bookId for generation as per existing logic
         chapterNames: chapterNames,
       );
 
       if (response != null) {
         _generatedLessonPlan = response;
         _pdfUrl = response['pdf_url'] ?? '';
-        logger.i('Lesson plan generated successfully. pdf_url: \$_pdfUrl');
+        logger.i('Lesson plan generated successfully. pdf_url: $_pdfUrl');
+        
+        // Auto-save the generated lesson plan if dates are selected
+        if (_fromDate != null && _toDate != null) {
+          await saveLessonPlan(
+            bookId: bookId,
+            bookName: bookName,
+            chapterName: chapterNames.isNotEmpty ? chapterNames.join(', ') : 'Generated Plan',
+            chapterIds: chapterIds,
+            content: formattedLessonPlan,
+            pdfUrl: _pdfUrl,
+          );
+        }
       } else {
         _errorMessage = 'Failed to generate lesson plan. Please try again.';
         logger.e('Empty response from AI service');
@@ -134,6 +167,123 @@ class LessonPlanViewModel extends ChangeNotifier {
     _errorMessage = '';
     _pdfUrl = '';
     _localPdfPath = '';
+    _fromDate = null;
+    _toDate = null;
     notifyListeners();
+  }
+
+  // CRUD Methods
+  
+  Future<void> fetchLessonPlans() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final response = await ApiService.getLessonPlans();
+      if (response.status && response.data != null) {
+        final List<dynamic> data = response.data;
+        _lessonPlans = data.map((e) => LessonPlan.fromJson(e)).toList();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Error fetching lesson plans: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchExams() async {
+    try {
+      final response = await ApiService.getExams();
+      if (response.status && response.data != null) {
+        final List<dynamic> data = response.data;
+        _exams = data.map((e) => Exam.fromJson(e)).toList();
+      }
+    } catch (e) {
+      logger.e('Error fetching exams: $e');
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchAllData() async {
+    _isLoading = true;
+    notifyListeners();
+    await Future.wait([
+      fetchLessonPlans(),
+      fetchExams(),
+    ]);
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> saveLessonPlan({
+    required String bookId,
+    required String bookName,
+    required String chapterName,
+    List<String>? chapterIds,
+    String? content,
+    String? pdfUrl,
+  }) async {
+    if (_fromDate == null || _toDate == null) return;
+    
+    final DateFormat formatter = DateFormat('yyyy-MM-dd');
+    final payload = {
+      'book_id': bookId,
+      'book_name': bookName,
+      'chapter_name': chapterName,
+      'chapter_ids': chapterIds,
+      'from_date': formatter.format(_fromDate!),
+      'to_date': formatter.format(_toDate!),
+      'content': content,
+      'pdf_url': pdfUrl,
+    };
+
+    try {
+      final response = await ApiService.createLessonPlan(payload);
+      if (response.status) {
+        logger.i('Lesson plan saved successfully');
+        await fetchAllData();
+      } else {
+        logger.e('Failed to save lesson plan: ${response.message}');
+      }
+    } catch (e) {
+      logger.e('Error saving lesson plan: $e');
+    }
+  }
+
+  Future<void> updateLessonPlanDates(int id, DateTime from, DateTime to) async {
+    final DateFormat formatter = DateFormat('yyyy-MM-dd');
+    final payload = {
+      'from_date': formatter.format(from),
+      'to_date': formatter.format(to),
+    };
+
+    try {
+      final response = await ApiService.updateLessonPlan(id, payload);
+      if (response.status) {
+        logger.i('Lesson plan updated successfully');
+        await fetchAllData();
+      } else {
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = 'Error updating lesson plan: $e';
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteLessonPlan(int id) async {
+    try {
+      final response = await ApiService.deleteLessonPlan(id);
+      if (response.status) {
+        _lessonPlans.removeWhere((element) => element.id == id);
+        notifyListeners();
+      }
+    } catch (e) {
+      logger.e('Error deleting lesson plan: $e');
+    }
   }
 }

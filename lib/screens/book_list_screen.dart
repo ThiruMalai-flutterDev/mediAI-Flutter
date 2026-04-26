@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../models/book.dart';
 import '../viewmodels/book_view_model.dart';
 import '../viewmodels/chat_view_model.dart';
+import 'online_exam_screen.dart';
 
 class BookListScreen extends StatefulWidget {
   final VoidCallback? onBooksSelected;
@@ -23,6 +24,7 @@ class _BookListScreenState extends State<BookListScreen> {
   Timer? _searchDebounce;
   bool _isTyping = false;
   bool _isSelectionMode = false;
+  bool _showExams = false;
   final Set<String> _selectedBooks = <String>{};
 
   @override
@@ -198,16 +200,16 @@ class _BookListScreenState extends State<BookListScreen> {
     );
   }
 
-  Future<void> _startNewChatWithBook(String bookName) async {
+  Future<void> _startNewChatWithBook(String bookName, String bookTitle) async {
     final chatViewModel = context.read<ChatViewModel>();
 
     try {
       // Start a new chat session with the selected book
-      await chatViewModel.startNewSessionWithBook(bookName);
+      await chatViewModel.startNewSessionWithBook(bookName, bookTitle);
 
       if (chatViewModel.errorMessage.isEmpty) {
         _showSnackBar(
-            'New chat started with "$bookName"! You can now start chatting with context from this book.');
+            'New chat started with "$bookTitle"! You can now start chatting with context from this book.');
         // Switch to chat tab using callback
         if (widget.onBooksSelected != null) {
           widget.onBooksSelected!();
@@ -235,23 +237,91 @@ class _BookListScreenState extends State<BookListScreen> {
                 // Header
                 _buildHeader(bookViewModel),
 
-                // Search Bar
-                _buildSearchBar(),
+                // Toggle for Books / Exams
+                _buildToggle(),
 
-                // Search Status
-                _buildSearchStatus(bookViewModel),
+                if (!_showExams) ...[
+                  // Search Bar
+                  _buildSearchBar(),
 
-                // Content
-                Expanded(
-                  child: _buildContent(bookViewModel),
-                ),
+                  // Search Status
+                  _buildSearchStatus(bookViewModel),
 
-                // Pagination Controls
-                _buildPaginationControls(bookViewModel),
+                  // Content
+                  Expanded(
+                    child: _buildContent(bookViewModel),
+                  ),
+
+                  // Pagination Controls
+                  _buildPaginationControls(bookViewModel),
+                ] else ...[
+                  const Expanded(
+                    child: OnlineExamScreen(),
+                  ),
+                ],
               ],
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildToggle() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showExams = false),
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 1.5.h),
+                decoration: BoxDecoration(
+                  color: !_showExams
+                      ? AppColors.primaryPurple
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    'Books',
+                    style: TextStyle(
+                      color: !_showExams ? Colors.white : Colors.black54,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _showExams = true),
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 1.5.h),
+                decoration: BoxDecoration(
+                  color:
+                      _showExams ? AppColors.primaryPurple : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    'Exams',
+                    style: TextStyle(
+                      color: _showExams ? Colors.white : Colors.black54,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -703,7 +773,7 @@ class _BookListScreenState extends State<BookListScreen> {
           : () {
               print('DEBUG: Book item tapped to start new chat: ${book.title}');
               HapticFeedback.lightImpact();
-              _startNewChatWithBook(book.bookName);
+              _startNewChatWithBook(book.bookName, book.title);
             },
       child: AnimatedContainer(
         duration: Duration(milliseconds: 200),
