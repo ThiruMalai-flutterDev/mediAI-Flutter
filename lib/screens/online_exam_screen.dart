@@ -76,7 +76,8 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
                           SizedBox(height: 2.h),
                           Text(
                             vm.error!,
-                            style: TextStyle(color: Colors.red, fontSize: 12.sp),
+                            style:
+                                TextStyle(color: Colors.red, fontSize: 12.sp),
                             textAlign: TextAlign.center,
                           ),
                           SizedBox(height: 2.h),
@@ -94,7 +95,10 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
                       onRefresh: vm.loadExams,
                       child: vm.exams.isEmpty
                           ? _buildEmptyState(vm)
-                          : (_useTableView ? _buildTable(vm) : _buildCardView(vm)),
+                          :
+                          //  (_useTableView ? _buildTable(vm) :
+                          _buildCardView(vm),
+                      // ),
                     ),
                   ),
               ],
@@ -190,6 +194,8 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
           exam: exam,
           onTakeTest: () => _handleTakeTest(exam, vm),
           onViewResults: () => _showExamResults(exam),
+          onEdit: () => _showEditDialog(exam, vm),
+          onDelete: () => _showDeleteConfirmation(exam, vm),
         );
       },
     );
@@ -215,6 +221,13 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
               DataColumn(
                   label:
                       Text('Book Name', style: TextStyle(color: Colors.black))),
+              DataColumn(
+                  label: Text('Date', style: TextStyle(color: Colors.black))),
+              DataColumn(
+                  label: Text('Status', style: TextStyle(color: Colors.black))),
+              DataColumn(
+                  label:
+                      Text('Actions', style: TextStyle(color: Colors.black))),
             ],
             rows: exams.map((exam) {
               return DataRow(
@@ -223,6 +236,40 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
                       style: const TextStyle(color: Colors.black))),
                   DataCell(Text(exam.bookName,
                       style: const TextStyle(color: Colors.black))),
+                  DataCell(Text(_formatDate(exam.date),
+                      style: const TextStyle(color: Colors.black))),
+                  DataCell(
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 2.w, vertical: 0.5.h),
+                      decoration: BoxDecoration(
+                        color: exam.statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        exam.statusText,
+                        style:
+                            TextStyle(color: exam.statusColor, fontSize: 10.sp),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _showEditDialog(exam, vm),
+                          tooltip: 'Edit Exam',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _showDeleteConfirmation(exam, vm),
+                          tooltip: 'Delete Exam',
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               );
             }).toList(),
@@ -303,6 +350,170 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
     );
   }
 
+  void _showDeleteConfirmation(Exam exam, ExamViewModel vm) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Exam'),
+        content: Text(
+            'Are you sure you want to delete "${exam.examName}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Capture the ScaffoldMessengerState before popping the dialog
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(dialogContext);
+
+              await vm.deleteExam(exam.id);
+
+              if (mounted) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Exam deleted successfully')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(Exam exam, ExamViewModel vm) {
+    final nameController = TextEditingController(text: exam.examName);
+    final descriptionController = TextEditingController(text: exam.description);
+    DateTime selectedDate = exam.date;
+    TimeOfDay startTime = TimeOfDay(
+        hour: exam.startDateTime.hour, minute: exam.startDateTime.minute);
+    TimeOfDay endTime =
+        TimeOfDay(hour: exam.endDateTime.hour, minute: exam.endDateTime.minute);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Exam'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Exam Name'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
+                SizedBox(height: 2.h),
+                ListTile(
+                  title: const Text('Date'),
+                  subtitle: Text(_formatDate(selectedDate)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDate = picked);
+                    }
+                  },
+                ),
+                ListTile(
+                  title: const Text('Start Time'),
+                  subtitle: Text(startTime.format(context)),
+                  trailing: const Icon(Icons.access_time),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: startTime,
+                    );
+                    if (picked != null) {
+                      setDialogState(() => startTime = picked);
+                    }
+                  },
+                ),
+                ListTile(
+                  title: const Text('End Time'),
+                  subtitle: Text(endTime.format(context)),
+                  trailing: const Icon(Icons.access_time),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: endTime,
+                    );
+                    if (picked != null) {
+                      setDialogState(() => endTime = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final updatedExam = exam.copyWith(
+                  examName: nameController.text,
+                  description: descriptionController.text,
+                  startDateTime: DateTime(
+                    selectedDate.year,
+                    selectedDate.month,
+                    selectedDate.day,
+                    startTime.hour,
+                    startTime.minute,
+                  ),
+                  endDateTime: DateTime(
+                    selectedDate.year,
+                    selectedDate.month,
+                    selectedDate.day,
+                    endTime.hour,
+                    endTime.minute,
+                  ),
+                );
+
+                // Capture ScaffoldMessengerState before pop
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.pop(dialogContext);
+
+                await vm.updateExam(updatedExam);
+
+                if (mounted) {
+                  if (vm.error != null) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                          content: Text(vm.error!),
+                          backgroundColor: Colors.red),
+                    );
+                  } else {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                          content: Text('Exam updated successfully')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showExamResults(Exam exam) {
     showDialog(
       context: context,
@@ -334,11 +545,15 @@ class _ExamCard extends StatelessWidget {
   final Exam exam;
   final VoidCallback onTakeTest;
   final VoidCallback onViewResults;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _ExamCard({
     required this.exam,
     required this.onTakeTest,
     required this.onViewResults,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -403,6 +618,40 @@ class _ExamCard extends StatelessWidget {
                       fontSize: 10.sp,
                     ),
                   ),
+                ),
+                SizedBox(width: 2.w),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      onEdit();
+                    } else if (value == 'delete') {
+                      onDelete();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 20, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 20, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

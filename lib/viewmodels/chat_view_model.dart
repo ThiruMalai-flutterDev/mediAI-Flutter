@@ -1500,8 +1500,9 @@ class ChatViewModel extends BaseViewModel {
       }
 
       // If we get here, all endpoints failed - load mock data for development
-      logger.w('All books endpoints failed, loading mock data for development');
-      _loadMockBooks();
+      logger.w('Failed to fetch books');
+      // logger.w('All books endpoints failed, loading mock data for development');
+      // _loadMockBooks();
       setLoading(false);
       notifyListeners();
     } catch (e) {

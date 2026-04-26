@@ -134,6 +134,35 @@ class DownloadsService {
     }
   }
 
+  /// Save PDF bytes to disk and add to downloads list
+  Future<String?> savePdf(
+    List<int> bytes,
+    String fileName,
+    String bookId,
+  ) async {
+    if (!_initialized) await init();
+
+    try {
+      final filePath = '${_downloadsDir.path}/$fileName';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes, flush: true);
+
+      await addDownload(
+        fileName: fileName,
+        filePath: filePath,
+        originalUrl: '', // Not known here
+        fileSize: bytes.length,
+        title: fileName.replaceAll('.pdf', '').replaceAll('_', ' '),
+        bookName: bookId,
+      );
+
+      return filePath;
+    } catch (e) {
+      print('Error saving PDF: $e');
+      return null;
+    }
+  }
+
   /// Add a downloaded file to the list
   Future<void> addDownload({
     required String fileName,

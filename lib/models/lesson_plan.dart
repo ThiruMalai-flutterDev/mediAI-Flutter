@@ -36,8 +36,8 @@ class LessonPlan {
       headingName: json['heading_name'],
       chapterIds: json['chapter_ids'] != null ? List<String>.from(json['chapter_ids']) : null,
       headingIds: json['heading_ids'] != null ? List<String>.from(json['heading_ids']) : null,
-      fromDate: json['from_date'] ?? '',
-      toDate: json['to_date'] ?? '',
+      fromDate: json['from_date'] ?? json['from'] ?? json['form'] ?? json['fromDate'] ?? '',
+      toDate: json['to_date'] ?? json['to'] ?? json['toDate'] ?? '',
       content: json['content'],
       pdfUrl: json['pdf_url'],
       payload: json['payload'],
@@ -51,6 +51,8 @@ class LessonPlan {
       'chapter_name': chapterName,
       'from_date': fromDate,
       'to_date': toDate,
+      'from': fromDate,
+      'to': toDate,
     };
     if (id != null) data['id'] = id;
     if (headingName != null) data['heading_name'] = headingName;

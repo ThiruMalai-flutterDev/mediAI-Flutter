@@ -1,3 +1,4 @@
+import 'package:dr_jebasingh_onco_ai/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
@@ -16,6 +17,12 @@ class AIQuestionBuilderScreen extends StatefulWidget {
 }
 
 class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
+  @override
+  void initState() {
+    context.read<AIQuestionBuilderViewModel>().loadExams();
+    super.initState();
+  }
+
   bool _useTableView = true;
   @override
   Widget build(BuildContext context) {
@@ -58,7 +65,8 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                               ),
                             ],
                           )
-                        : (_useTableView ? _buildTable(vm) : _buildList(vm)),
+                        // : (_useTableView ? _buildTable(vm) :
+                        : _buildList(vm),
                   ),
                 ),
               ],
@@ -88,24 +96,24 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
           ),
         ),
         SizedBox(width: 3.w),
-        Tooltip(
-          message:
-              _useTableView ? 'Switch to card view' : 'Switch to table view',
-          child: InkWell(
-            onTap: () => setState(() => _useTableView = !_useTableView),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: EdgeInsets.all(2.w),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(_useTableView
-                  ? Icons.view_agenda_outlined
-                  : Icons.table_chart_outlined),
-            ),
-          ),
-        ),
+        // Tooltip(
+        //   message:
+        //       _useTableView ? 'Switch to card view' : 'Switch to table view',
+        //   child: InkWell(
+        //     onTap: () => setState(() => _useTableView = !_useTableView),
+        //     borderRadius: BorderRadius.circular(12),
+        //     child: Container(
+        //       padding: EdgeInsets.all(2.w),
+        //       decoration: BoxDecoration(
+        //         color: Colors.grey.shade200,
+        //         borderRadius: BorderRadius.circular(12),
+        //       ),
+        //       child: Icon(_useTableView
+        //           ? Icons.view_agenda_outlined
+        //           : Icons.table_chart_outlined),
+        //     ),
+        //   ),
+        // ),
         SizedBox(width: 3.w),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
@@ -188,7 +196,7 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                     style: const TextStyle(color: Colors.black),
                   ),
                 )),
-                DataCell(Text(_formatDate(p.date),
+                DataCell(Text(formatDate(p.date),
                     style: const TextStyle(color: Colors.black))),
                 DataCell(Text(p.startTime.format(context),
                     style: const TextStyle(color: Colors.black))),
@@ -231,6 +239,7 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
     final TextEditingController chapterTextController = TextEditingController();
     bool isGenerating = false;
     bool isPreviewing = false;
+    dynamic generatedPayload;
 
     double computeTotalMarks() {
       final tq = int.tryParse(totalQuestionsController.text) ?? 0;
@@ -378,7 +387,7 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                             },
                             child: Text(date == null
                                 ? 'Select date'
-                                : _formatDate(date!)),
+                                : formatDate(date!)),
                           )),
                       Row(
                         children: [
@@ -576,7 +585,8 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                                               builder: (context) =>
                                                   QuestionPreviewScreen(
                                                 examTitle: paper.examName,
-                                                payload: {}, // Empty payload for preview
+                                                payload: generatedPayload ??
+                                                    {}, // Use generated payload if available
                                                 marksPerQuestion:
                                                     paper.marksPerQuestion,
                                                 paper:
@@ -680,23 +690,36 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                                               ? typedChapters
                                               : null,
                                         );
+
                                         if (context.mounted) {
-                                          // Show SnackBar in the current context
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                              content: Text(res.status
-                                                  ? 'Question generated successfully'
-                                                  : 'Failed: ${res.message}'),
-                                              backgroundColor: res.status
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                              duration: Duration(seconds: 3),
-                                              behavior:
-                                                  SnackBarBehavior.floating,
-                                              margin: EdgeInsets.all(16),
-                                            ),
-                                          );
+                                          if (res.status && res.data != null) {
+                                            // Store generated data for the preview button
+                                            setSheetState(() =>
+                                                generatedPayload = res.data);
+
+                                            // Automatically navigate to preview
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    QuestionPreviewScreen(
+                                                  examTitle: paper.examName,
+                                                  payload: res.data,
+                                                  marksPerQuestion:
+                                                      paper.marksPerQuestion,
+                                                  paper: paper,
+                                                ),
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Failed: ${res.message}'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
                                         }
                                       } finally {
                                         if (mounted)
@@ -745,10 +768,10 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
       },
     );
   }
+}
 
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
-  }
+String formatDate(DateTime date) {
+  return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
 }
 
 class _PaperCard extends StatelessWidget {
@@ -756,22 +779,17 @@ class _PaperCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _PaperCard(
-      {required this.paper, required this.onEdit, required this.onDelete});
+  const _PaperCard({
+    required this.paper,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
-        ],
-      ),
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.all(4.w),
         child: Column(
@@ -780,82 +798,197 @@ class _PaperCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    paper.examName,
-                    style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryPurple),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ID: ${paper.id}',
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      SizedBox(height: 0.4.h),
+                      Text(
+                        paper.examName,
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                IconButton(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit, color: Colors.blueGrey)),
-                IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete, color: Colors.redAccent)),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      onEdit();
+                    } else if (value == 'delete') {
+                      onDelete();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 20, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 20, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-            SizedBox(height: 1.h),
-            Consumer<BookViewModel>(
-              builder: (context, bookVm, _) => _DetailRow(
-                label: 'Book',
-                value: bookVm.getBookByName(paper.bookName)?.title ?? paper.bookName,
-              ),
-            ),
-            _DetailRow(
-                label: 'Date',
-                value:
-                    '${paper.date.day}/${paper.date.month}/${paper.date.year}'),
-            _DetailRow(
-                label: 'Time',
-                value:
-                    '${paper.startTime.format(context)} - ${paper.endTime.format(context)}'),
+            SizedBox(height: 2.h),
             Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Questions',
-                          style: TextStyle(
-                              color: Colors.grey.shade700, fontSize: 10.sp)),
-                      Text(paper.totalQuestions.toString(),
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                              fontSize: 12.sp)),
-                    ],
+                  child: Consumer<BookViewModel>(
+                    builder: (context, bookVm, _) => _InfoItem(
+                      icon: Icons.book,
+                      label: 'Book Name',
+                      value: bookVm.getBookByName(paper.bookName)?.title ??
+                          paper.bookName,
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Marks/Q',
-                          style: TextStyle(
-                              color: Colors.grey.shade700, fontSize: 10.sp)),
-                      Text(paper.marksPerQuestion.toStringAsFixed(2),
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                              fontSize: 12.sp)),
-                    ],
+                  child: _InfoItem(
+                    icon: Icons.calendar_today,
+                    label: 'Date',
+                    value: formatDate(paper.date),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 1.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.quiz,
+                    label: 'Total Questions',
+                    value: '${paper.totalQuestions}',
                   ),
                 ),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Total',
-                          style: TextStyle(
-                              color: Colors.grey.shade700, fontSize: 10.sp)),
-                      Text(paper.totalMarks.toStringAsFixed(2),
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                              fontSize: 12.sp)),
-                    ],
+                  child: _InfoItem(
+                    icon: Icons.speed,
+                    label: 'Marks per Question',
+                    value: paper.marksPerQuestion.toStringAsFixed(2),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 1.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.grade,
+                    label: 'Total Marks',
+                    value: paper.totalMarks.toStringAsFixed(2),
+                  ),
+                ),
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.play_arrow,
+                    label: 'Start Time',
+                    value: paper.startTime.format(context),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 1.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoItem(
+                    icon: Icons.stop,
+                    label: 'End Time',
+                    value: paper.endTime.format(context),
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+            SizedBox(height: 2.h),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      // Show loading indicator
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) =>
+                            const Center(child: CircularProgressIndicator()),
+                      );
+
+                      try {
+                        // Fetch the specific exam details (including questions)
+                        final response = await ApiService.getExamById(paper.id);
+
+                        // Close loading indicator
+                        if (context.mounted) Navigator.pop(context);
+
+                        dynamic payload = {};
+                        if (response.status && response.data != null) {
+                          payload = response.data;
+                        }
+
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => QuestionPreviewScreen(
+                                examTitle: paper.examName,
+                                payload: payload,
+                                marksPerQuestion: paper.marksPerQuestion,
+                                paper: paper,
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        // Close loading indicator
+                        if (context.mounted) Navigator.pop(context);
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Error loading questions: $e')),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryPurple,
+                      padding: EdgeInsets.symmetric(vertical: 1.5.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.visibility, color: Colors.white),
+                    label: const Text('Preview Paper',
+                        style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
@@ -867,28 +1000,51 @@ class _PaperCard extends StatelessWidget {
   }
 }
 
-class _DetailRow extends StatelessWidget {
+class _InfoItem extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
 
-  const _DetailRow({required this.label, required this.value});
+  const _InfoItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 0.6.h),
-      child: Row(
-        children: [
-          SizedBox(
-              width: 26.w,
-              child:
-                  Text(label, style: TextStyle(color: Colors.grey.shade700))),
-          Expanded(
-              child: Text(value,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, color: Colors.black))),
-        ],
-      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon,
+            size: 14.sp, color: AppColors.primaryPurple.withOpacity(0.7)),
+        SizedBox(width: 2.w),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9.sp,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -982,18 +1138,20 @@ class _BookDropdownState extends State<_BookDropdown> {
     // Load initial books based on chapter option
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final bookVm = context.read<BookViewModel>();
-      bookVm.loadBooksByChapterMode(
-            chapterMode: widget.chapterOption == ChapterOption.chapter,
-          ).then((_) {
-            if (mounted && widget.initial != null) {
-              final book = bookVm.getBookByName(widget.initial!);
-              if (book != null) {
-                setState(() {
-                  _searchController.text = book.title;
-                });
-              }
-            }
-          });
+      bookVm
+          .loadBooksByChapterMode(
+        chapterMode: widget.chapterOption == ChapterOption.chapter,
+      )
+          .then((_) {
+        if (mounted && widget.initial != null) {
+          final book = bookVm.getBookByName(widget.initial!);
+          if (book != null) {
+            setState(() {
+              _searchController.text = book.title;
+            });
+          }
+        }
+      });
     });
   }
 

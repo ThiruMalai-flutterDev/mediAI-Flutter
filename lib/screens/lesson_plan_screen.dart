@@ -1,3 +1,4 @@
+import 'package:dr_jebasingh_onco_ai/models/api_response.dart';
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +12,6 @@ import '../models/book.dart';
 import '../services/api_service.dart';
 import 'package:intl/intl.dart';
 import '../models/lesson_plan.dart';
-import '../models/exam.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/url_services.dart';
@@ -107,7 +107,8 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
                 style: TextStyle(color: AppColors.primaryGradient[0]),
               ),
             ),
-          if (_showCreationFlow) const SizedBox(width: 48), // Balance for back button
+          if (_showCreationFlow)
+            const SizedBox(width: 48), // Balance for back button
         ],
       ),
     );
@@ -189,7 +190,7 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
         });
       },
       eventLoader: (day) {
-        return _getEventsForDay(day, viewModel.lessonPlans, viewModel.exams);
+        return _getEventsForDay(day, viewModel.lessonPlans);
       },
       calendarStyle: CalendarStyle(
         selectedDecoration: BoxDecoration(
@@ -218,39 +219,35 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
   }
 
   List<dynamic> _getEventsForDay(
-      DateTime day, List<LessonPlan> allPlans, List<Exam> allExams) {
+      DateTime day, List<LessonPlan> allPlans) {
     final List<dynamic> events = [];
 
     // Add lesson plans
     events.addAll(allPlans.where((plan) {
+      if (plan.fromDate.isEmpty || plan.toDate.isEmpty) return false;
       try {
         final from = DateTime.parse(plan.fromDate);
         final to = DateTime.parse(plan.toDate);
+        
+        // Use dates without time for comparison
         final checkDay = DateTime(day.year, day.month, day.day);
         final fromDay = DateTime(from.year, from.month, from.day);
         final toDay = DateTime(to.year, to.month, to.day);
-        return (checkDay.isAfter(fromDay) ||
-                checkDay.isAtSameMomentAs(fromDay)) &&
-            (checkDay.isBefore(toDay) || checkDay.isAtSameMomentAs(toDay));
-      } catch (_) {
+        
+        return (checkDay.isAfter(fromDay) || checkDay.isAtSameMomentAs(fromDay)) &&
+               (checkDay.isBefore(toDay) || checkDay.isAtSameMomentAs(toDay));
+      } catch (e) {
         return false;
       }
     }));
 
-    // Add exams
-    events.addAll(allExams.where((exam) {
-      final checkDay = DateTime(day.year, day.month, day.day);
-      final examDay = DateTime(exam.startDateTime.year,
-          exam.startDateTime.month, exam.startDateTime.day);
-      return checkDay.isAtSameMomentAs(examDay);
-    }));
 
     return events;
   }
 
   Widget _buildLessonPlanList(LessonPlanViewModel viewModel) {
     final events = _getEventsForDay(
-        _selectedDay ?? _focusedDay, viewModel.lessonPlans, viewModel.exams);
+        _selectedDay ?? _focusedDay, viewModel.lessonPlans);
 
     if (events.isEmpty) {
       return Padding(
@@ -276,31 +273,12 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
         final event = events[index];
         if (event is LessonPlan) {
           return _buildPlanItem(event, viewModel);
-        } else if (event is Exam) {
-          return _buildExamItem(event);
         }
         return const SizedBox.shrink();
       },
     );
   }
 
-  Widget _buildExamItem(Exam exam) {
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
-      color: Colors.blue[50],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: ListTile(
-        leading: const Icon(Icons.assignment, color: Colors.blue),
-        title: Text(
-          exam.examName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-            'Exam • ${exam.startTimeOnly} - ${exam.endTimeOnly}\nBook: ${exam.bookName}'),
-        isThreeLine: true,
-      ),
-    );
-  }
 
   Widget _buildPlanItem(LessonPlan plan, LessonPlanViewModel viewModel) {
     return Card(
@@ -1529,27 +1507,53 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
               ),
             ],
           ),
-          // SizedBox(height: 2.h),
-          // Container(
-          //   width: double.infinity,
-          //   padding: EdgeInsets.all(3.w),
-          //   decoration: BoxDecoration(
-          //     color: AppColors.white,
-          //     borderRadius: BorderRadius.circular(10),
-          //     border: Border.all(
-          //       color: Colors.grey[300]!,
-          //       width: 1,
-          //     ),
-          //   ),
-          //   child: Text(
-          //     viewModel.formattedLessonPlan,
-          //     style: TextStyle(
-          //       fontSize: 3.5.w,
-          //       color: Colors.black87,
-          //       height: 1.5,
-          //     ),
-          //   ),
-          // ),
+          SizedBox(height: 2.h),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(3.w),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Colors.grey[300]!,
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  viewModel.formattedLessonPlan,
+                  style: TextStyle(
+                    fontSize: 3.5.w,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
+                ),
+                if (viewModel.hasPdf) ...[
+                  SizedBox(height: 2.h),
+                  const Divider(),
+                  SizedBox(height: 1.h),
+                  Center(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _downloadAsPDF(viewModel),
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download Lesson Plan PDF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGradient[0],
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 6.w, vertical: 1.5.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1748,16 +1752,14 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
       bookName: book.title,
       chapterNames: allSelectedItems,
       chapterIds: chapterIds,
-      // Pass subChapterIds if needed by the viewmodel (optional)
     )
         .then((_) {
       if (viewModel.errorMessage.isEmpty) {
-        setState(() {
-          _showCreationFlow = false;
-        });
+        // STAY ON SCREEN - Don't set _showCreationFlow to false
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Lesson plan generated and saved successfully!'),
+            content: Text(
+                'Lesson plan generated successfully! Scroll down to view.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -1872,25 +1874,42 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
         ),
       );
 
-      // Call new API method with progress and status callbacks
-      final response = await ApiService.generateLessonPlanPdf(
-        bookId: _selectedBook ?? 'Unknown',
-        chapterId: _selectedChapters.isNotEmpty ? _selectedChapters.first : '',
-        headingIds: _selectedChapters,
-        chapterName:
-            _selectedChapters.isNotEmpty ? _selectedChapters.join(', ') : '',
-        headingName:
-            _selectedChapters.isNotEmpty ? _selectedChapters.first : '',
-        lessonTitle: 'Lesson Plan - ${_selectedBook ?? 'Lesson'}',
-        limit: 10,
-        onProgress: (received, total) {
-          downloadedBytesNotifier.value = received;
-          totalBytesNotifier.value = total;
-        },
-        onStatusChange: (status) {
-          statusNotifier.value = status;
-        },
-      );
+      // Call appropriate API based on whether we already have a pdf_url
+      ApiResponse response;
+      if (viewModel.pdfUrl.isNotEmpty) {
+        response = await ApiService.downloadPdfFromUrl(
+          pdfUrl: viewModel.pdfUrl,
+          fileName: 'Lesson_Plan_${DateTime.now().millisecondsSinceEpoch}.pdf',
+          bookId: _selectedBook ?? 'Unknown',
+          onProgress: (received, total) {
+            downloadedBytesNotifier.value = received;
+            totalBytesNotifier.value = total;
+          },
+          onStatusChange: (status) {
+            statusNotifier.value = status;
+          },
+        );
+      } else {
+        response = await ApiService.generateLessonPlanPdf(
+          bookId: _selectedBook ?? 'Unknown',
+          chapterId:
+              _selectedChapters.isNotEmpty ? _selectedChapters.first : '',
+          headingIds: _selectedChapters,
+          chapterName:
+              _selectedChapters.isNotEmpty ? _selectedChapters.join(', ') : '',
+          headingName:
+              _selectedChapters.isNotEmpty ? _selectedChapters.first : '',
+          lessonTitle: 'Lesson Plan - ${_selectedBook ?? 'Lesson'}',
+          limit: 10,
+          onProgress: (received, total) {
+            downloadedBytesNotifier.value = received;
+            totalBytesNotifier.value = total;
+          },
+          onStatusChange: (status) {
+            statusNotifier.value = status;
+          },
+        );
+      }
 
       // Close progress dialog
       Navigator.of(context).pop();
@@ -1985,7 +2004,7 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
                           ),
                           SizedBox(height: 0.5.h),
                           Text(
-                            'Size: ${((downloadData['size'] as int) / 1024 / 1024).toStringAsFixed(2)} MB',
+                            'Size: ${downloadData['size'] != null ? ((downloadData['size'] as int) / 1024 / 1024).toStringAsFixed(2) : '0.00'} MB',
                             style: TextStyle(fontSize: 3.w),
                           ),
                           Text(

@@ -81,7 +81,7 @@ class UrlServices {
   static const String LESSON_PLANS =
       'api/lesson-plans'; // CRUD endpoint for lesson plans
   static const String LESSON_PLANS_RANGE =
-      'api/lesson-plans/range'; // Get lesson plans by date range
+      'api/lesson-plans'; // Get lesson plans by date range
 
   // Other endpoints
   static const String HEALTH_CHECK = 'api/health';

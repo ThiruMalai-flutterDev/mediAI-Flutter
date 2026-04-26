@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../utils/logger.dart';
 import '../models/lesson_plan.dart';
-import '../models/exam.dart';
 import 'package:intl/intl.dart';
 
 class LessonPlanViewModel extends ChangeNotifier {
@@ -15,7 +14,6 @@ class LessonPlanViewModel extends ChangeNotifier {
   DateTime? _fromDate;
   DateTime? _toDate;
   List<LessonPlan> _lessonPlans = [];
-  List<Exam> _exams = [];
 
   // Getters
   bool get isLoading => _isLoading;
@@ -27,7 +25,6 @@ class LessonPlanViewModel extends ChangeNotifier {
   DateTime? get fromDate => _fromDate;
   DateTime? get toDate => _toDate;
   List<LessonPlan> get lessonPlans => _lessonPlans;
-  List<Exam> get exams => _exams;
 
   // Set date range
   void setDateRange(DateTime? from, DateTime? to) {
@@ -179,40 +176,45 @@ class LessonPlanViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final response = await ApiService.getLessonPlans();
+
       if (response.status && response.data != null) {
-        final List<dynamic> data = response.data;
-        _lessonPlans = data.map((e) => LessonPlan.fromJson(e)).toList();
+        dynamic rawData = response.data;
+        List<dynamic> dataList = [];
+
+        if (rawData is List) {
+          dataList = rawData;
+        } else if (rawData is Map<String, dynamic>) {
+          if (rawData.containsKey('lesson_plans') &&
+              rawData['lesson_plans'] is List) {
+            dataList = rawData['lesson_plans'];
+          } else if (rawData.containsKey('data') && rawData['data'] is List) {
+            dataList = rawData['data'];
+          } else if (rawData.containsKey('lesson-plans') &&
+              rawData['lesson-plans'] is List) {
+            dataList = rawData['lesson-plans'];
+          }
+        }
+
+        _lessonPlans = dataList.map((e) => LessonPlan.fromJson(e)).toList();
       } else {
         _errorMessage = response.message;
       }
     } catch (e) {
       _errorMessage = 'Error fetching lesson plans: $e';
+      logger.e('Error fetching lesson plans: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> fetchExams() async {
-    try {
-      final response = await ApiService.getExams();
-      if (response.status && response.data != null) {
-        final List<dynamic> data = response.data;
-        _exams = data.map((e) => Exam.fromJson(e)).toList();
-      }
-    } catch (e) {
-      logger.e('Error fetching exams: $e');
-    } finally {
-      notifyListeners();
-    }
-  }
+
 
   Future<void> fetchAllData() async {
     _isLoading = true;
     notifyListeners();
     await Future.wait([
       fetchLessonPlans(),
-      fetchExams(),
     ]);
     _isLoading = false;
     notifyListeners();

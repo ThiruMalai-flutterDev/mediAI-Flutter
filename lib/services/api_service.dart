@@ -1112,6 +1112,7 @@ class ApiService {
           }
 
           // Handle server errors (502, 503, 504, etc.)
+          // Handle server errors (502, 503, 504, etc.)
           final statusCode = response.statusCode;
           if (statusCode != null && statusCode >= 500) {
             String errorMessage =
@@ -1134,17 +1135,36 @@ class ApiService {
               message: errorMessage,
               data: null,
             );
-          } else {
+          }
+
+          // Handle lesson plans or success/data format
+          if (responseData is Map &&
+              (responseData.containsKey('success') ||
+                  responseData.containsKey('data') ||
+                  responseData.containsKey('lesson_plan') ||
+                  responseData.containsKey('lesson_plans') ||
+                  responseData.containsKey('lesson-plan') ||
+                  responseData.containsKey('lesson-plans'))) {
+            final status = responseData['success'] ?? true;
             return ApiResponse(
               version: '0',
               validationErrors: [],
-              code: statusCode ?? 400,
-              status: false,
-              message:
-                  'Unexpected response format from server. Please contact support.',
-              data: null,
+              code: response.statusCode ?? 200,
+              status: status is bool ? status : true,
+              message: responseData['message'] ?? 'Success',
+              data: responseData['data'] ?? responseData,
             );
           }
+
+          return ApiResponse(
+            version: '0',
+            validationErrors: [],
+            code: statusCode ?? 400,
+            status: false,
+            message:
+                'Unexpected response format from server. Please contact support.',
+            data: null,
+          );
         }
       }
 
@@ -1325,6 +1345,23 @@ class ApiService {
               status: false,
               message: message,
               data: null,
+            );
+          }
+
+          // Handle lesson plans or success/data format
+          if (responseData is Map &&
+              (responseData.containsKey('success') ||
+                  responseData.containsKey('data') ||
+                  responseData.containsKey('lesson_plans') ||
+                  responseData.containsKey('lesson-plans'))) {
+            final status = responseData['success'] ?? true;
+            return ApiResponse(
+              version: '0',
+              validationErrors: [],
+              code: response.statusCode ?? 200,
+              status: status is bool ? status : true,
+              message: responseData['message'] ?? 'Success',
+              data: responseData['data'] ?? responseData,
             );
           }
 
@@ -2497,6 +2534,95 @@ class ApiService {
   }
 
   /// Generate and download lesson plan PDF
+  /// Download PDF from a given URL and save to local storage
+  static Future<ApiResponse> downloadPdfFromUrl({
+    required String pdfUrl,
+    required String fileName,
+    required String bookId,
+    Function(int, int)? onProgress,
+    Function(String)? onStatusChange,
+  }) async {
+    try {
+      final downloadUrl =
+          pdfUrl.startsWith('http') ? pdfUrl : '${UrlServices.BASE_URL}$pdfUrl';
+
+      logger.i('Downloading PDF from: $downloadUrl');
+      onStatusChange?.call('Downloading PDF...');
+
+      final pdfResponse = await _dio.get(
+        downloadUrl,
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => status != null && status < 600,
+        ),
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            onProgress?.call(received, total);
+          }
+        },
+      );
+
+      if (pdfResponse.statusCode != 200 || pdfResponse.data == null) {
+        onStatusChange?.call('Failed to download PDF');
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: pdfResponse.statusCode ?? 500,
+          status: false,
+          message: 'Failed to download PDF.',
+          data: null,
+        );
+      }
+
+      onStatusChange?.call('Saving PDF...');
+      final downloadsService = DownloadsService.getInstance();
+      final savedPath = await downloadsService.savePdf(
+        pdfResponse.data,
+        fileName,
+        bookId,
+      );
+
+      if (savedPath != null) {
+        onStatusChange?.call('Download complete');
+        return ApiResponse(
+          version: '1',
+          validationErrors: [],
+          code: 200,
+          status: true,
+          message: 'PDF downloaded successfully.',
+          data: {
+            'file_path': savedPath,
+            'file_name': fileName,
+            'pdf_url': pdfUrl,
+            'size': pdfResponse.data.length,
+            'downloaded_at': DateTime.now().toIso8601String(),
+          },
+        );
+      } else {
+        onStatusChange?.call('Failed to save PDF');
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: 500,
+          status: false,
+          message: 'Failed to save PDF to local storage.',
+          data: null,
+        );
+      }
+    } catch (e) {
+      logger.e('Error downloading PDF: $e');
+      onStatusChange?.call('Error downloading PDF');
+      return ApiResponse(
+        version: '0',
+        validationErrors: [],
+        code: 500,
+        status: false,
+        message: 'Error downloading PDF: ${e.toString()}',
+        data: null,
+      );
+    }
+  }
+
   /// First gets lesson plan data with pdf_url, then downloads from that URL
   /// Saves to persistent local storage and maintains downloads list
   static Future<ApiResponse> generateLessonPlanPdf({
@@ -2558,8 +2684,7 @@ class ApiService {
       }
 
       if (pdfUrl == null || pdfUrl.isEmpty) {
-        logger.e(
-            'No pdf_url found in lesson plan response: $responseData');
+        logger.e('No pdf_url found in lesson plan response: $responseData');
         onStatusChange?.call('PDF URL not found');
         return ApiResponse(
           version: '0',
@@ -2572,100 +2697,14 @@ class ApiService {
       }
 
       logger.i('PDF URL from response: $pdfUrl');
-      onStatusChange?.call('Downloading PDF...');
 
-      // Step 3: Download PDF from the provided URL with progress tracking
-      final downloadUrl =
-          '${UrlServices.BASE_URL}$pdfUrl'; // Construct full URL if relative
-      logger.i('Downloading PDF from: $downloadUrl');
-
-      final pdfResponse = await _dio.get(
-        downloadUrl,
-        options: Options(
-          responseType: ResponseType.bytes,
-          validateStatus: (status) => status != null && status < 600,
-        ),
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            final progressPercent = ((received / total) * 100).toInt();
-            logger.d('Download progress: $progressPercent%');
-            onProgress?.call(received, total);
-          }
-        },
-      );
-
-      if (pdfResponse.statusCode != 200 || pdfResponse.data == null) {
-        onStatusChange?.call('Failed to download PDF');
-        return ApiResponse(
-          version: '0',
-          validationErrors: [],
-          code: pdfResponse.statusCode ?? 500,
-          status: false,
-          message: 'Failed to download PDF from URL.',
-          data: null,
-        );
-      }
-
-      if (pdfResponse.data is! List<int>) {
-        onStatusChange?.call('Invalid PDF format');
-        return ApiResponse(
-          version: '0',
-          validationErrors: [],
-          code: 400,
-          status: false,
-          message: 'Server did not return a valid PDF file.',
-          data: null,
-        );
-      }
-
-      // Step 4: Save PDF to persistent local storage
-      onStatusChange?.call('Saving to device...');
-      final bytes = pdfResponse.data as List<int>;
-      
-      // Initialize downloads service
-      final downloadsService = DownloadsService.getInstance();
-      await downloadsService.init();
-      
-      // Extract filename from pdf_url or generate one
-      final fileName = pdfUrl.split('/').last.isNotEmpty
-          ? pdfUrl.split('/').last
-          : 'lesson_plan_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      
-      final downloadsPath = downloadsService.downloadsDirPath;
-      final filePath = '$downloadsPath/$fileName';
-      final file = File(filePath);
-      await file.writeAsBytes(bytes, flush: true);
-
-      logger.i(
-          'PDF saved successfully to: $filePath (${bytes.length} bytes)');
-
-      // Step 5: Track download in downloads list
-      await downloadsService.addDownload(
-        fileName: fileName,
-        filePath: filePath,
-        originalUrl: downloadUrl,
-        fileSize: bytes.length,
-        title: lessonTitle,
-        bookName: bookId,
-        chapterName: chapterName,
-      );
-
-      onStatusChange?.call('Download completed');
-
-      return ApiResponse(
-        version: '0',
-        validationErrors: [],
-        code: 200,
-        status: true,
-        message: 'Lesson plan PDF downloaded successfully.',
-        data: {
-          'file_path': filePath,
-          'file_name': fileName,
-          'size': bytes.length,
-          'pdf_url': pdfUrl,
-          'download_id': DateTime.now().millisecondsSinceEpoch.toString(),
-          'downloaded_at': DateTime.now().toIso8601String(),
-        },
+      // Step 3 & 4: Download and save using the refactored method
+      return await downloadPdfFromUrl(
+        pdfUrl: pdfUrl,
+        fileName: '$lessonTitle.pdf',
+        bookId: bookId,
+        onProgress: onProgress,
+        onStatusChange: onStatusChange,
       );
     } on DioException catch (dioErr) {
       logger.e('Lesson plan PDF download error: $dioErr');
@@ -2694,17 +2733,10 @@ class ApiService {
     );
   }
 
-  /// Get lesson plans by date range
-  static Future<ApiResponse> getLessonPlansInRange(String from, String to) async {
-    return await get(
-      endpoint: UrlServices.LESSON_PLANS_RANGE,
-      params: {'from': from, 'to': to},
-      useAuth: true,
-    );
-  }
 
   /// Create lesson plan
-  static Future<ApiResponse> createLessonPlan(Map<String, dynamic> payload) async {
+  static Future<ApiResponse> createLessonPlan(
+      Map<String, dynamic> payload) async {
     return await post(
       endpoint: UrlServices.LESSON_PLANS,
       json: payload,
@@ -2713,7 +2745,8 @@ class ApiService {
   }
 
   /// Update lesson plan
-  static Future<ApiResponse> updateLessonPlan(int id, Map<String, dynamic> payload) async {
+  static Future<ApiResponse> updateLessonPlan(
+      int id, Map<String, dynamic> payload) async {
     return await put(
       endpoint: '${UrlServices.LESSON_PLANS}/$id',
       json: payload,

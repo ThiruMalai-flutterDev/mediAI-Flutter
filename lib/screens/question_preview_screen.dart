@@ -56,44 +56,60 @@ class _QuestionPreviewScreenState extends State<QuestionPreviewScreen> {
             '🔍 Processing question ${i + 1}, item type: ${item.runtimeType}');
         if (item is Map) {
           print('🔍 Question ${i + 1} keys: ${item.keys.toList()}');
-          final q = item['question']?.toString() ?? 'Question ${i + 1}';
+          
+          // Support both 'question' and 'question_text'
+          final q = (item['question_text'] ?? item['question'] ?? 'Question ${i + 1}').toString();
           print('🔍 Question ${i + 1}: $q');
 
-          // Support two formats:
-          // 1) options: ["A", "B", ...]
-          // 2) options: [{option: A, text: "...", correct: true/false}, ...]
           List<String> options = [];
           int? correctIndex;
-          final rawOptions = item['options'];
-          if (rawOptions is List && rawOptions.isNotEmpty) {
-            print('🔍 Question ${i + 1} has ${rawOptions.length} options');
-            print('🔍 Raw options: $rawOptions');
-            if (rawOptions.first is Map) {
-              for (int oi = 0; oi < rawOptions.length; oi++) {
-                final ro = rawOptions[oi] as Map;
-                print('🔍 Option ${oi + 1} map: $ro');
-                final text = (ro['text'] ?? ro['option'] ?? '').toString();
-                options.add(text);
-                final correctFlag = ro['correct'];
-                if (correctFlag is bool && correctFlag) correctIndex ??= oi;
-                print('🔍 Option ${oi + 1}: $text (correct: $correctFlag)');
-              }
-            } else {
-              options = rawOptions.map((e) => e.toString()).toList();
-              print('🔍 Options: $options');
-            }
+
+          // Check for new format: option_a, option_b, option_c, option_d
+          if (item.containsKey('option_a')) {
+            options = [
+              item['option_a']?.toString() ?? '',
+              item['option_b']?.toString() ?? '',
+              item['option_c']?.toString() ?? '',
+              item['option_d']?.toString() ?? '',
+            ];
+            
+            // Handle correct_answer as "A", "B", "C", "D"
+            final correctAns = item['correct_answer']?.toString().toUpperCase() ?? '';
+            if (correctAns == 'A') correctIndex = 0;
+            else if (correctAns == 'B') correctIndex = 1;
+            else if (correctAns == 'C') correctIndex = 2;
+            else if (correctAns == 'D') correctIndex = 3;
           } else {
-            print('🔍 No options found for question ${i + 1}');
+            // Support existing formats:
+            // 1) options: ["A", "B", ...]
+            // 2) options: [{option: A, text: "...", correct: true/false}, ...]
+            final rawOptions = item['options'];
+            if (rawOptions is List && rawOptions.isNotEmpty) {
+              print('🔍 Question ${i + 1} has ${rawOptions.length} options');
+              if (rawOptions.first is Map) {
+                for (int oi = 0; oi < rawOptions.length; oi++) {
+                  final ro = rawOptions[oi] as Map;
+                  final text = (ro['text'] ?? ro['option'] ?? '').toString();
+                  options.add(text);
+                  final correctFlag = ro['correct'];
+                  if (correctFlag is bool && correctFlag) correctIndex ??= oi;
+                }
+              } else {
+                options = rawOptions.map((e) => e.toString()).toList();
+              }
+            }
+
+            if (item['answer_index'] is int)
+              correctIndex = item['answer_index'] as int;
+            if (correctIndex == null &&
+                item['answer'] != null &&
+                options.isNotEmpty) {
+              final ans = item['answer'].toString();
+              final idx = options.indexOf(ans);
+              if (idx >= 0) correctIndex = idx;
+            }
           }
-          if (item['answer_index'] is int)
-            correctIndex = item['answer_index'] as int;
-          if (correctIndex == null &&
-              item['answer'] != null &&
-              options.isNotEmpty) {
-            final ans = item['answer'].toString();
-            final idx = options.indexOf(ans);
-            if (idx >= 0) correctIndex = idx;
-          }
+
           print(
               '🔍 Final question ${i + 1}: text="$q", options=$options, correctIndex=$correctIndex');
           result.add(
