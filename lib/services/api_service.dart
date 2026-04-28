@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -178,39 +179,33 @@ class ApiService {
 
   /// Generate questions
   static Future<ApiResponse> generateQuestions({
-    required String examName,
-    required String topicOrBookName,
-    required String date,
-    required String duration,
-    required int totalQuestions,
+    required String bookId,
+    List<String>? chapterIds,
+    List<String>? headingIds,
+    required int numQuestions,
     required num marksPerQuestion,
+    required String difficulty,
     required String aiOption,
-    List<String>? chapterNames,
-    String? bookName,
+    // Keep these for backward compatibility if needed, but they won't be in the main payload if they aren't in the new structure
+    String? examName,
+    String? date,
     String? startTime,
     String? endTime,
   }) async {
     final payload = {
-      'exam_name': examName,
-      'topic_or_book_name': topicOrBookName,
-      'book_name': bookName ?? topicOrBookName,
-      'date': date,
-      'duration': duration,
-      'total_questions': totalQuestions,
+      'book_id': bookId,
+      'chapter_ids': chapterIds,
+      'heading_ids': headingIds,
+      'num_questions': numQuestions,
       'marks_per_question': marksPerQuestion,
+      'difficulty': difficulty,
       'ai_option': aiOption,
     };
-    // API expects singular key 'chapter_name' with list value per sample payload
-    if (chapterNames != null && chapterNames.isNotEmpty) {
-      payload['chapter_name'] = chapterNames;
-    }
-    if (startTime != null) payload['start_time'] = startTime;
-    if (endTime != null) payload['end_time'] = endTime;
-
+    print("payload.toString() => ${payload.toString()}");
     return await post(
       endpoint: UrlServices.GENERATE_QUESTIONS,
       json: payload,
-      useAuth: true, // This endpoint requires authentication
+      useAuth: true,
     );
   }
 
@@ -1009,72 +1004,9 @@ class ApiService {
           responseData = responseData.first;
         }
 
-        if (responseData is Map &&
-            (responseData.containsKey('code') ||
-                responseData.containsKey('statusCode'))) {
-          final code = responseData['code'] ?? responseData['statusCode'];
-          final status = responseData['status'] ?? (code == 200);
-          final message = responseData['message'] ?? 'No message provided';
-          final validationErrors = responseData['validationErrors'];
-
-          if (code == 200) {
-            return ApiResponse(
-              version: responseData['version'] ?? '0',
-              validationErrors: validationErrors,
-              code: code,
-              status: status,
-              message: message,
-              data: responseData['data'],
-            );
-          } else {
-            if (validationErrors != null &&
-                validationErrors is Map &&
-                validationErrors.containsKey('password')) {
-              final passwordErrors = validationErrors['password']['_errors'];
-              if (passwordErrors is List && passwordErrors.isNotEmpty) {
-                showError(text: passwordErrors.join('\n'));
-              }
-            }
-
-            return ApiResponse(
-              version: responseData['version'] ?? '0',
-              validationErrors: validationErrors,
-              code: code,
-              status: status,
-              message: message,
-              data: responseData['data'],
-            );
-          }
-        } else if (response.statusCode == 200 &&
-            responseData is Map &&
-            endpoint.contains('web-search')) {
-          // Accept plain JSON payloads from web-search endpoint
-          return ApiResponse(
-            version: '0',
-            validationErrors: [],
-            code: 200,
-            status: true,
-            message: 'Web search results received successfully',
-            data: responseData,
-          );
-        } else if (response.statusCode == 200 &&
-            responseData is Map &&
-            (endpoint.contains('chat') || endpoint.contains('session'))) {
-          // Accept plain JSON payloads from chat/session endpoints
-          // This handles Medibook API format: {"answer": "...", "sources": [...], ...}
-          return ApiResponse(
-            version: '0',
-            validationErrors: [],
-            code: 200,
-            status: true,
-            message: 'Chat response received successfully',
-            data: responseData,
-          );
-        } else {
-          // Handle generate questions response format (exam_id, questions array)
-          if (responseData is Map &&
-              responseData.containsKey('exam_id') &&
-              responseData.containsKey('questions')) {
+        if (responseData is Map) {
+          // 1. Check for 'questions' key directly at root
+          if (responseData.containsKey('questions')) {
             return ApiResponse(
               version: '0',
               validationErrors: [],
@@ -1085,9 +1017,52 @@ class ApiService {
             );
           }
 
-          // Handle exam creation response format (message, exam object)
-          if (responseData is Map &&
-              responseData.containsKey('message') &&
+          // 2. Check for standard code/statusCode wrapper
+          if (responseData.containsKey('code') ||
+              responseData.containsKey('statusCode')) {
+            final code = responseData['code'] ?? responseData['statusCode'];
+            final status = responseData['status'] ?? (code == 200);
+            final message = responseData['message'] ?? 'No message provided';
+            final validationErrors = responseData['validationErrors'];
+            final data = responseData['data'] ??
+                (responseData.containsKey('questions') ? responseData : null);
+
+            return ApiResponse(
+              version: responseData['version'] ?? '0',
+              validationErrors: validationErrors,
+              code: code,
+              status: status,
+              message: message,
+              data: data,
+            );
+          }
+
+          // 3. Special endpoints
+          if (response.statusCode == 200) {
+            if (endpoint.contains('web-search')) {
+              return ApiResponse(
+                version: '0',
+                validationErrors: [],
+                code: 200,
+                status: true,
+                message: 'Web search results received successfully',
+                data: responseData,
+              );
+            }
+            if (endpoint.contains('chat') || endpoint.contains('session')) {
+              return ApiResponse(
+                version: '0',
+                validationErrors: [],
+                code: 200,
+                status: true,
+                message: 'Chat response received successfully',
+                data: responseData,
+              );
+            }
+          }
+
+          // 4. Other successful Map responses
+          if (responseData.containsKey('message') &&
               responseData.containsKey('exam')) {
             return ApiResponse(
               version: '0',
@@ -1099,8 +1074,7 @@ class ApiService {
             );
           }
 
-          // Handle chat response format (messages array)
-          if (responseData is Map && responseData.containsKey('messages')) {
+          if (responseData.containsKey('messages')) {
             return ApiResponse(
               version: '0',
               validationErrors: [],
@@ -1111,40 +1085,12 @@ class ApiService {
             );
           }
 
-          // Handle server errors (502, 503, 504, etc.)
-          // Handle server errors (502, 503, 504, etc.)
-          final statusCode = response.statusCode;
-          if (statusCode != null && statusCode >= 500) {
-            String errorMessage =
-                'Server is temporarily unavailable. Please try again later.';
-            if (statusCode == 502) {
-              errorMessage =
-                  'Server is temporarily unavailable. Please try again later.';
-            } else if (statusCode == 503) {
-              errorMessage =
-                  'Service is temporarily unavailable. Please try again later.';
-            } else if (statusCode == 504) {
-              errorMessage = 'Server timeout. Please try again later.';
-            }
-
-            return ApiResponse(
-              version: '0',
-              validationErrors: [],
-              code: statusCode,
-              status: false,
-              message: errorMessage,
-              data: null,
-            );
-          }
-
-          // Handle lesson plans or success/data format
-          if (responseData is Map &&
-              (responseData.containsKey('success') ||
-                  responseData.containsKey('data') ||
-                  responseData.containsKey('lesson_plan') ||
-                  responseData.containsKey('lesson_plans') ||
-                  responseData.containsKey('lesson-plan') ||
-                  responseData.containsKey('lesson-plans'))) {
+          if (responseData.containsKey('success') ||
+              responseData.containsKey('data') ||
+              responseData.containsKey('lesson_plan') ||
+              responseData.containsKey('lesson_plans') ||
+              responseData.containsKey('lesson-plan') ||
+              responseData.containsKey('lesson-plans')) {
             final status = responseData['success'] ?? true;
             return ApiResponse(
               version: '0',
@@ -1155,17 +1101,41 @@ class ApiService {
               data: responseData['data'] ?? responseData,
             );
           }
+        }
+
+        // Fallback for unexpected format
+        if (response.statusCode != null && response.statusCode! >= 500) {
+          final statusCode = response.statusCode!;
+          String errorMessage =
+              'Server is temporarily unavailable. Please try again later.';
+          if (statusCode == 502)
+            errorMessage =
+                'Server is temporarily unavailable. Please try again later.';
+          else if (statusCode == 503)
+            errorMessage =
+                'Service is temporarily unavailable. Please try again later.';
+          else if (statusCode == 504)
+            errorMessage = 'Server timeout. Please try again later.';
 
           return ApiResponse(
             version: '0',
             validationErrors: [],
-            code: statusCode ?? 400,
+            code: statusCode,
             status: false,
-            message:
-                'Unexpected response format from server. Please contact support.',
+            message: errorMessage,
             data: null,
           );
         }
+
+        return ApiResponse(
+          version: '0',
+          validationErrors: [],
+          code: response.statusCode ?? 400,
+          status: false,
+          message:
+              'Unexpected response format from server. Please contact support.',
+          data: null,
+        );
       }
 
       return ApiResponse(
@@ -2732,7 +2702,6 @@ class ApiService {
       useAuth: true,
     );
   }
-
 
   /// Create lesson plan
   static Future<ApiResponse> createLessonPlan(

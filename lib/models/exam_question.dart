@@ -18,14 +18,94 @@ class ExamQuestion {
   });
 
   factory ExamQuestion.fromJson(Map<String, dynamic> json) {
+    List<ExamOption> optionsList = [];
+
+    // 1. Check for flattened format: option_a, option_b, option_c, option_d
+    if (json.containsKey('option_a')) {
+      final optionKeys = ['option_a', 'option_b', 'option_c', 'option_d'];
+      final optionAnsLabels = ['A', 'B', 'C', 'D'];
+      final correctAns =
+          (json['correct_answer'] ?? json['answer'])?.toString().toUpperCase() ??
+              '';
+
+      for (int i = 0; i < optionKeys.length; i++) {
+        final key = optionKeys[i];
+        if (json.containsKey(key) && json[key] != null) {
+          optionsList.add(ExamOption(
+            id: i + 1, // Temporary ID for UI
+            questionId: json['id'] ?? 0,
+            text: json[key].toString(),
+            isCorrect: optionAnsLabels[i] == correctAns ||
+                json[key].toString() == correctAns,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ));
+        }
+      }
+    }
+    // 2. Otherwise check for nested "options" key
+    else if (json['options'] != null && json['options'] is List) {
+      final rawOptions = json['options'] as List;
+      if (rawOptions.isNotEmpty) {
+        if (rawOptions.first is Map) {
+          // List of maps (standard format)
+          optionsList = rawOptions
+              .map((option) => ExamOption.fromJson(option as Map<String, dynamic>))
+              .toList();
+        } else {
+          // List of strings
+          for (int i = 0; i < rawOptions.length; i++) {
+            optionsList.add(ExamOption(
+              id: i + 1,
+              questionId: json['id'] ?? 0,
+              text: rawOptions[i].toString(),
+              isCorrect: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ));
+          }
+          // Try to find correct answer from 'answer', 'correct_answer', or 'answer_index'
+          final ans =
+              (json['answer'] ?? json['correct_answer'])?.toString();
+          final ansIdx = json['answer_index'];
+
+          int? idx;
+          if (ansIdx is int) {
+            idx = ansIdx;
+          } else if (ans != null) {
+            if (ans.length == 1) {
+              final labelIdx = ['A', 'B', 'C', 'D'].indexOf(ans.toUpperCase());
+              if (labelIdx >= 0 && labelIdx < optionsList.length) idx = labelIdx;
+            }
+            if (idx == null) {
+              final textIdx =
+                  rawOptions.indexWhere((o) => o.toString() == ans);
+              if (textIdx >= 0) idx = textIdx;
+            }
+          }
+
+          if (idx != null && idx >= 0 && idx < optionsList.length) {
+            final old = optionsList[idx];
+            optionsList[idx] = ExamOption(
+              id: old.id,
+              questionId: old.questionId,
+              text: old.text,
+              isCorrect: true,
+              createdAt: old.createdAt,
+              updatedAt: old.updatedAt,
+            );
+          }
+        }
+      }
+    }
+
     return ExamQuestion(
       id: json['id'] ?? 0,
       examId: json['exam_id'] ?? 0,
-      questionText: json['question_text'] ?? '',
+      questionText:
+          (json['question_text'] ?? json['question'] ?? '').toString(),
       aiOption: json['ai_option'] ?? '',
-      options: (json['options'] as List<dynamic>?)
-          ?.map((option) => ExamOption.fromJson(option))
-          .toList() ?? [],
+      options: optionsList,
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
     );

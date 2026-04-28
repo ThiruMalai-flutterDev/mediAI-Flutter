@@ -34,6 +34,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
   @override
   void initState() {
     super.initState();
+    _hasSubmitted = widget.exam.status == ExamStatus.completed;
     _loadExamData();
   }
 
@@ -854,6 +855,7 @@ class _ExamTakingScreenState extends State<ExamTakingScreen> {
                 index: _currentQuestionIndex,
                 question: currentQuestion,
                 selectedOptionId: selectedOptionId,
+                isReviewMode: _hasSubmitted,
                 onSelected: (optionId) =>
                     _selectAnswer(currentQuestion.id, optionId),
               ),
@@ -990,36 +992,44 @@ class _ExamQuestionCard extends StatelessWidget {
   final int index;
   final ExamQuestion question;
   final int? selectedOptionId;
+  final bool isReviewMode;
   final ValueChanged<int> onSelected;
 
   const _ExamQuestionCard({
     required this.index,
     required this.question,
     required this.selectedOptionId,
+    this.isReviewMode = false,
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Find the correct option
-    final correctOption = question.options.firstWhere(
-      (option) => option.isCorrect,
-      orElse: () =>
-          question.options.first, // Fallback if no correct option found
-    );
+    // Find the correct option safely
+    final ExamOption? correctOption = question.options.isEmpty
+        ? null
+        : question.options.firstWhere(
+            (option) => option.isCorrect,
+            orElse: () => question.options.first,
+          );
+
+    final effectiveSelectedId =
+        (isReviewMode && selectedOptionId == null && correctOption != null)
+            ? correctOption.id
+            : selectedOptionId;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: AppColors.shadowLight,
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.borderLight),
       ),
       padding: EdgeInsets.all(4.w),
       child: Column(
@@ -1029,9 +1039,9 @@ class _ExamQuestionCard extends StatelessWidget {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.5.h),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: AppColors.lightGray,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: AppColors.borderLight),
             ),
             child: Row(
               children: [
@@ -1058,7 +1068,7 @@ class _ExamQuestionCard extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14.sp,
-                      color: Colors.black87,
+                      color: AppColors.black,
                     ),
                   ),
                 ),
@@ -1072,38 +1082,48 @@ class _ExamQuestionCard extends StatelessWidget {
               margin: EdgeInsets.only(bottom: 1.h),
               decoration: BoxDecoration(
                 color: _getOptionBackgroundColor(
-                    question.options[i], selectedOptionId, correctOption),
+                    question.options[i], effectiveSelectedId, correctOption),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: _getOptionBorderColor(
-                      question.options[i], selectedOptionId, correctOption),
+                      question.options[i], effectiveSelectedId, correctOption),
                   width: 2,
                 ),
               ),
               child: RadioListTile<int>(
                 value: question.options[i].id,
-                groupValue: selectedOptionId,
-                onChanged: (v) => onSelected(v!),
+                groupValue: effectiveSelectedId,
+                onChanged: isReviewMode ? null : (v) => onSelected(v!),
                 title: Row(
                   children: [
+                    Text(
+                      '${String.fromCharCode(65 + i)}) ',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.bold,
+                        color: _getOptionTextColor(question.options[i],
+                            effectiveSelectedId, correctOption),
+                      ),
+                    ),
                     Expanded(
                       child: Text(
                         question.options[i].text,
                         style: TextStyle(
                           fontSize: 13.sp,
                           color: _getOptionTextColor(question.options[i],
-                              selectedOptionId, correctOption),
-                          fontWeight: selectedOptionId == question.options[i].id
-                              ? FontWeight.w500
-                              : FontWeight.normal,
+                              effectiveSelectedId, correctOption),
+                          fontWeight:
+                              effectiveSelectedId == question.options[i].id
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
                         ),
                       ),
                     ),
                     // Show feedback icons
-                    if (selectedOptionId != null) ...[
+                    if (effectiveSelectedId != null) ...[
                       SizedBox(width: 1.w),
-                      _getFeedbackIcon(
-                          question.options[i], selectedOptionId, correctOption),
+                      _getFeedbackIcon(question.options[i], effectiveSelectedId,
+                          correctOption),
                     ],
                   ],
                 ),
@@ -1115,36 +1135,36 @@ class _ExamQuestionCard extends StatelessWidget {
               ),
             ),
           // Show feedback message if an option is selected
-          if (selectedOptionId != null) ...[
+          if (effectiveSelectedId != null) ...[
             SizedBox(height: 1.h),
             Container(
               padding: EdgeInsets.all(3.w),
               decoration: BoxDecoration(
                 color: _getFeedbackBackgroundColor(
-                    selectedOptionId, correctOption),
+                    effectiveSelectedId, correctOption),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color:
-                      _getFeedbackBorderColor(selectedOptionId, correctOption),
+                  color: _getFeedbackBorderColor(
+                      effectiveSelectedId, correctOption),
                   width: 1,
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
-                    _getFeedbackIconData(selectedOptionId, correctOption),
-                    color:
-                        _getFeedbackIconColor(selectedOptionId, correctOption),
+                    _getFeedbackIconData(effectiveSelectedId, correctOption),
+                    color: _getFeedbackIconColor(
+                        effectiveSelectedId, correctOption),
                     size: 20,
                   ),
                   SizedBox(width: 2.w),
                   Expanded(
                     child: Text(
-                      _getFeedbackMessage(selectedOptionId, correctOption),
+                      _getFeedbackMessage(effectiveSelectedId, correctOption),
                       style: TextStyle(
                         fontSize: 12.sp,
                         color: _getFeedbackTextColor(
-                            selectedOptionId, correctOption),
+                            effectiveSelectedId, correctOption),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -1159,20 +1179,18 @@ class _ExamQuestionCard extends StatelessWidget {
   }
 
   Color _getOptionBackgroundColor(
-      ExamOption option, int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) {
+      ExamOption option, int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) {
       return Colors.white;
     }
 
     if (option.id == selectedId) {
-      // Selected option
       if (option.isCorrect) {
         return Colors.green.withOpacity(0.1);
       } else {
         return Colors.red.withOpacity(0.1);
       }
     } else if (option.id == correctOption.id) {
-      // Correct option (not selected)
       return Colors.green.withOpacity(0.05);
     }
 
@@ -1180,22 +1198,18 @@ class _ExamQuestionCard extends StatelessWidget {
   }
 
   Color _getOptionBorderColor(
-      ExamOption option, int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) {
-      return option.id == selectedId
-          ? AppColors.primaryPurple
-          : Colors.grey.shade200;
+      ExamOption option, int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) {
+      return Colors.grey.shade200;
     }
 
     if (option.id == selectedId) {
-      // Selected option
       if (option.isCorrect) {
         return Colors.green;
       } else {
         return Colors.red;
       }
     } else if (option.id == correctOption.id) {
-      // Correct option (not selected)
       return Colors.green;
     }
 
@@ -1203,20 +1217,18 @@ class _ExamQuestionCard extends StatelessWidget {
   }
 
   Color _getOptionTextColor(
-      ExamOption option, int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) {
+      ExamOption option, int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) {
       return Colors.black87;
     }
 
     if (option.id == selectedId) {
-      // Selected option
       if (option.isCorrect) {
         return Colors.green.shade800;
       } else {
         return Colors.red.shade800;
       }
     } else if (option.id == correctOption.id) {
-      // Correct option (not selected)
       return Colors.green.shade700;
     }
 
@@ -1224,8 +1236,9 @@ class _ExamQuestionCard extends StatelessWidget {
   }
 
   Widget _getFeedbackIcon(
-      ExamOption option, int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return const SizedBox.shrink();
+      ExamOption option, int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null)
+      return const SizedBox.shrink();
 
     if (option.id == selectedId) {
       if (option.isCorrect) {
@@ -1240,8 +1253,9 @@ class _ExamQuestionCard extends StatelessWidget {
     return const SizedBox.shrink();
   }
 
-  Color _getFeedbackBackgroundColor(int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return Colors.transparent;
+  Color _getFeedbackBackgroundColor(
+      int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) return Colors.transparent;
 
     if (selectedId == correctOption.id) {
       return Colors.green.withOpacity(0.1);
@@ -1250,8 +1264,8 @@ class _ExamQuestionCard extends StatelessWidget {
     }
   }
 
-  Color _getFeedbackBorderColor(int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return Colors.transparent;
+  Color _getFeedbackBorderColor(int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) return Colors.transparent;
 
     if (selectedId == correctOption.id) {
       return Colors.green.withOpacity(0.3);
@@ -1260,8 +1274,8 @@ class _ExamQuestionCard extends StatelessWidget {
     }
   }
 
-  IconData _getFeedbackIconData(int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return Icons.help_outline;
+  IconData _getFeedbackIconData(int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) return Icons.help_outline;
 
     if (selectedId == correctOption.id) {
       return Icons.check_circle;
@@ -1270,8 +1284,8 @@ class _ExamQuestionCard extends StatelessWidget {
     }
   }
 
-  Color _getFeedbackIconColor(int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return Colors.grey;
+  Color _getFeedbackIconColor(int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) return Colors.grey;
 
     if (selectedId == correctOption.id) {
       return Colors.green;
@@ -1280,8 +1294,8 @@ class _ExamQuestionCard extends StatelessWidget {
     }
   }
 
-  Color _getFeedbackTextColor(int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return Colors.grey;
+  Color _getFeedbackTextColor(int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) return Colors.grey;
 
     if (selectedId == correctOption.id) {
       return Colors.green.shade800;
@@ -1290,8 +1304,8 @@ class _ExamQuestionCard extends StatelessWidget {
     }
   }
 
-  String _getFeedbackMessage(int? selectedId, ExamOption correctOption) {
-    if (selectedId == null) return '';
+  String _getFeedbackMessage(int? selectedId, ExamOption? correctOption) {
+    if (selectedId == null || correctOption == null) return '';
 
     if (selectedId == correctOption.id) {
       return '🎉 Correct! Well done!';

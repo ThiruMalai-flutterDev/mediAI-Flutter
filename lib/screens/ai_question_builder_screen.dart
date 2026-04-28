@@ -20,6 +20,7 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
   @override
   void initState() {
     context.read<AIQuestionBuilderViewModel>().loadExams();
+    context.read<BookViewModel>().loadBooks();
     super.initState();
   }
 
@@ -237,6 +238,8 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
     ChapterOption chapterOption = ChapterOption.chapter;
     // Chapter input (typeable)
     final TextEditingController chapterTextController = TextEditingController();
+    List<String> selectedChapterIds = existing?.chapterIds ?? [];
+    List<String> selectedHeadingIds = existing?.headingIds ?? [];
     bool isGenerating = false;
     bool isPreviewing = false;
     dynamic generatedPayload;
@@ -346,9 +349,14 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                             onChanged: (val) {
                               bookNameController.text = val ?? '';
                               chapterTextController.clear();
+                              selectedChapterIds = [];
+                              selectedHeadingIds = [];
                             },
                             onChaptersChanged: (chapters) {
-                              chapterTextController.text = chapters.join(', ');
+                              selectedChapterIds = chapters;
+                            },
+                            onHeadingsChanged: (headings) {
+                              selectedHeadingIds = headings;
                             },
                           )),
                       _FormField(
@@ -576,22 +584,49 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                                           totalMarks: computeTotalMarks(),
                                           aiOption: aiOption,
                                           chapterOption: chapterOption,
+                                          chapterIds: selectedChapterIds,
+                                          headingIds: selectedHeadingIds,
+                                        );
+
+                                        final res = await vm.generateQuestions(
+                                          paper,
+                                          chapterIds: selectedChapterIds.isNotEmpty ? selectedChapterIds : null,
+                                          headingIds: selectedHeadingIds.isNotEmpty ? selectedHeadingIds : null,
+                                          difficulty: 'medium', // Default to medium as requested
                                         );
 
                                         if (context.mounted) {
-                                          Navigator.of(context).pop();
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  QuestionPreviewScreen(
-                                                examTitle: paper.examName,
-                                                payload: generatedPayload ??
-                                                    {}, // Use generated payload if available
-                                                marksPerQuestion:
-                                                    paper.marksPerQuestion,
-                                                paper:
-                                                    paper, // Pass the paper object for saving
+                                          if (res.status && res.data != null) {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    QuestionPreviewScreen(
+                                                  examTitle: paper.examName,
+                                                  payload: res.data,
+                                                  marksPerQuestion:
+                                                      paper.marksPerQuestion,
+                                                  paper: paper,
+                                                ),
                                               ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Failed to generate preview: ${res.message}'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error: $e'),
+                                              backgroundColor: Colors.red,
                                             ),
                                           );
                                         }
@@ -667,6 +702,8 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                                         totalMarks: computeTotalMarks(),
                                         aiOption: aiOption,
                                         chapterOption: chapterOption,
+                                        chapterIds: selectedChapterIds,
+                                        headingIds: selectedHeadingIds,
                                       );
                                       setSheetState(() => isGenerating = true);
                                       try {
@@ -684,11 +721,9 @@ class _AIQuestionBuilderScreenState extends State<AIQuestionBuilderScreen> {
                                                 .toList();
                                         final res = await vm.generateQuestions(
                                           paper,
-                                          chapterNames: (chapterOption ==
-                                                      ChapterOption.chapter &&
-                                                  typedChapters.isNotEmpty)
-                                              ? typedChapters
-                                              : null,
+                                          chapterIds: selectedChapterIds.isNotEmpty ? selectedChapterIds : null,
+                                          headingIds: selectedHeadingIds.isNotEmpty ? selectedHeadingIds : null,
+                                          difficulty: 'medium',
                                         );
 
                                         if (context.mounted) {
@@ -929,70 +964,70 @@ class _PaperCard extends StatelessWidget {
               ],
             ),
             SizedBox(height: 2.h),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      // Show loading indicator
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) =>
-                            const Center(child: CircularProgressIndicator()),
-                      );
+            // Row(
+            //   children: [
+            //     Expanded(
+            //       child: ElevatedButton.icon(
+            //         onPressed: () async {
+            //           // Show loading indicator
+            //           showDialog(
+            //             context: context,
+            //             barrierDismissible: false,
+            //             builder: (context) =>
+            //                 const Center(child: CircularProgressIndicator()),
+            //           );
 
-                      try {
-                        // Fetch the specific exam details (including questions)
-                        final response = await ApiService.getExamById(paper.id);
+            //           try {
+            //             // Fetch the specific exam details (including questions)
+            //             final response = await ApiService.getExamById(paper.id);
 
-                        // Close loading indicator
-                        if (context.mounted) Navigator.pop(context);
+            //             // Close loading indicator
+            //             if (context.mounted) Navigator.pop(context);
 
-                        dynamic payload = {};
-                        if (response.status && response.data != null) {
-                          payload = response.data;
-                        }
+            //             dynamic payload = {};
+            //             if (response.status && response.data != null) {
+            //               payload = response.data;
+            //             }
 
-                        if (context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => QuestionPreviewScreen(
-                                examTitle: paper.examName,
-                                payload: payload,
-                                marksPerQuestion: paper.marksPerQuestion,
-                                paper: paper,
-                              ),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        // Close loading indicator
-                        if (context.mounted) Navigator.pop(context);
+            //             if (context.mounted) {
+            //               Navigator.push(
+            //                 context,
+            //                 MaterialPageRoute(
+            //                   builder: (context) => QuestionPreviewScreen(
+            //                     examTitle: paper.examName,
+            //                     payload: payload,
+            //                     marksPerQuestion: paper.marksPerQuestion,
+            //                     paper: paper,
+            //                   ),
+            //                 ),
+            //               );
+            //             }
+            //           } catch (e) {
+            //             // Close loading indicator
+            //             if (context.mounted) Navigator.pop(context);
 
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text('Error loading questions: $e')),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryPurple,
-                      padding: EdgeInsets.symmetric(vertical: 1.5.h),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    icon: const Icon(Icons.visibility, color: Colors.white),
-                    label: const Text('Preview Paper',
-                        style: TextStyle(color: Colors.white)),
-                  ),
-                ),
-              ],
-            ),
+            //             if (context.mounted) {
+            //               ScaffoldMessenger.of(context).showSnackBar(
+            //                 SnackBar(
+            //                     content: Text('Error loading questions: $e')),
+            //               );
+            //             }
+            //           }
+            //         },
+            //         style: ElevatedButton.styleFrom(
+            //           backgroundColor: AppColors.primaryPurple,
+            //           padding: EdgeInsets.symmetric(vertical: 1.5.h),
+            //           shape: RoundedRectangleBorder(
+            //             borderRadius: BorderRadius.circular(8),
+            //           ),
+            //         ),
+            //         icon: const Icon(Icons.visibility, color: Colors.white),
+            //         label: const Text('Preview Paper',
+            //             style: TextStyle(color: Colors.white)),
+            //       ),
+            //     ),
+            //   ],
+            // ),
           ],
         ),
       ),
@@ -1104,12 +1139,14 @@ class _BookDropdown extends StatefulWidget {
   final ValueChanged<String?> onChanged;
   final ChapterOption chapterOption;
   final ValueChanged<List<String>>? onChaptersChanged;
+  final ValueChanged<List<String>>? onHeadingsChanged;
 
   const _BookDropdown(
       {this.initial,
       required this.onChanged,
       required this.chapterOption,
-      this.onChaptersChanged});
+      this.onChaptersChanged,
+      this.onHeadingsChanged});
 
   @override
   State<_BookDropdown> createState() => _BookDropdownState();
@@ -1126,9 +1163,28 @@ class _BookDropdownState extends State<_BookDropdown> {
   List<String> _selectedChapters = [];
   List<BookChild> _availableChaptersWithSubChapters = [];
   Map<String, List<BookChild>> _subChaptersMap = {};
-  Set<String> _selectedSubChapters = {};
+  List<String> _selectedSubChapters = [];
   bool _isLoadingChapters = false;
   bool _showChapterDropdown = false;
+
+  String _getChapterTitle(String id) {
+    final chapter = _availableChaptersWithSubChapters.firstWhere(
+      (c) => c.id == id,
+      orElse: () => BookChild(id: id, title: id, type: 'chapter'),
+    );
+    return chapter.title;
+  }
+
+  String _getSubChapterTitle(String id) {
+    for (var chapter in _availableChaptersWithSubChapters) {
+      final sub = chapter.children.firstWhere(
+        (s) => s.id == id,
+        orElse: () => BookChild(id: '', title: '', type: ''),
+      );
+      if (sub.id.isNotEmpty) return sub.title;
+    }
+    return id;
+  }
 
   @override
   void initState() {
@@ -1211,7 +1267,7 @@ class _BookDropdownState extends State<_BookDropdown> {
       _isSearching = false;
       _showChapterDropdown = true;
       _selectedChapters = [];
-      _selectedSubChapters.clear();
+      _selectedSubChapters = [];
     });
     _searchController.text = bookTitle.isNotEmpty ? bookTitle : bookName;
     widget.onChanged(bookName);
@@ -1225,7 +1281,7 @@ class _BookDropdownState extends State<_BookDropdown> {
       _availableChapters = [];
       _availableChaptersWithSubChapters = [];
       _subChaptersMap = {};
-      _selectedSubChapters = {};
+      _selectedSubChapters = [];
       _selectedChapters = [];
     });
 
@@ -1252,7 +1308,8 @@ class _BookDropdownState extends State<_BookDropdown> {
           _isLoadingChapters = false;
         });
       } else {
-        // Fallback to simple chapters
+        // Fallback to simple chapters - but these don't have IDs in the simple titles list
+        // However, we can use titles as IDs if needed or update the viewmodel
         final chapters = await bookViewModel.getChaptersOfBook(bookName);
         if (mounted) {
           setState(() {
@@ -1346,10 +1403,8 @@ class _BookDropdownState extends State<_BookDropdown> {
                 _selectedChapters.remove(chapter);
               }
             });
-            widget.onChaptersChanged?.call([
-              ..._selectedChapters,
-              ..._selectedSubChapters,
-            ]);
+            widget.onChaptersChanged?.call(_selectedChapters);
+            widget.onHeadingsChanged?.call(_selectedSubChapters);
           },
           activeColor: AppColors.primaryPurple,
         );
@@ -1363,7 +1418,7 @@ class _BookDropdownState extends State<_BookDropdown> {
       itemCount: _availableChaptersWithSubChapters.length,
       itemBuilder: (context, index) {
         final chapter = _availableChaptersWithSubChapters[index];
-        final isChapterSelected = _selectedChapters.contains(chapter.title);
+        final isChapterSelected = _selectedChapters.contains(chapter.id);
         final hasSubChapters = chapter.hasSubChapters;
         final subChapters = chapter.children;
 
@@ -1384,15 +1439,13 @@ class _BookDropdownState extends State<_BookDropdown> {
               onChanged: (bool? value) {
                 setDialogState(() {
                   if (value == true) {
-                    _selectedChapters.add(chapter.title);
+                    _selectedChapters.add(chapter.id);
                   } else {
-                    _selectedChapters.remove(chapter.title);
+                    _selectedChapters.remove(chapter.id);
                   }
                 });
-                widget.onChaptersChanged?.call([
-                  ..._selectedChapters,
-                  ..._selectedSubChapters,
-                ]);
+                widget.onChaptersChanged?.call(_selectedChapters);
+                widget.onHeadingsChanged?.call(_selectedSubChapters);
               },
               activeColor: AppColors.primaryPurple,
             ),
@@ -1412,7 +1465,7 @@ class _BookDropdownState extends State<_BookDropdown> {
                 child: Column(
                   children: subChapters.map((subChapter) {
                     final isSubSelected =
-                        _selectedSubChapters.contains(subChapter.title);
+                        _selectedSubChapters.contains(subChapter.id);
                     return CheckboxListTile(
                       title: Text(
                         subChapter.title,
@@ -1425,11 +1478,12 @@ class _BookDropdownState extends State<_BookDropdown> {
                       onChanged: (bool? value) {
                         setDialogState(() {
                           if (value == true) {
-                            _selectedSubChapters.add(subChapter.title);
+                            _selectedSubChapters.add(subChapter.id);
                           } else {
-                            _selectedSubChapters.remove(subChapter.title);
+                            _selectedSubChapters.remove(subChapter.id);
                           }
                         });
+                        widget.onHeadingsChanged?.call(_selectedSubChapters);
                       },
                       activeColor: Colors.blue[700],
                     );
@@ -1713,7 +1767,7 @@ class _BookDropdownState extends State<_BookDropdown> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    chapter,
+                                    _getChapterTitle(chapter),
                                     style: TextStyle(
                                       fontSize: 3.w,
                                       color: AppColors.primaryPurple,
@@ -1725,10 +1779,8 @@ class _BookDropdownState extends State<_BookDropdown> {
                                       setState(() {
                                         _selectedChapters.remove(chapter);
                                       });
-                                      widget.onChaptersChanged?.call([
-                                        ..._selectedChapters,
-                                        ..._selectedSubChapters,
-                                      ]);
+                                      widget.onChaptersChanged?.call(_selectedChapters);
+                                      widget.onHeadingsChanged?.call(_selectedSubChapters);
                                     },
                                     child: Icon(
                                       Icons.close,
@@ -1757,7 +1809,7 @@ class _BookDropdownState extends State<_BookDropdown> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    subChapter,
+                                    _getSubChapterTitle(subChapter),
                                     style: TextStyle(
                                       fontSize: 3.w,
                                       color: Colors.blue[700],
@@ -1769,10 +1821,8 @@ class _BookDropdownState extends State<_BookDropdown> {
                                       setState(() {
                                         _selectedSubChapters.remove(subChapter);
                                       });
-                                      widget.onChaptersChanged?.call([
-                                        ..._selectedChapters,
-                                        ..._selectedSubChapters,
-                                      ]);
+                                      widget.onChaptersChanged?.call(_selectedChapters);
+                                      widget.onHeadingsChanged?.call(_selectedSubChapters);
                                     },
                                     child: Icon(
                                       Icons.close,

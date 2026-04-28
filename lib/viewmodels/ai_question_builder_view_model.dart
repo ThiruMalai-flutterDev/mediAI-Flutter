@@ -18,6 +18,8 @@ class AIQuestionPaper {
   final double totalMarks;
   final AiOption aiOption;
   final ChapterOption chapterOption;
+  final List<String>? chapterIds;
+  final List<String>? headingIds;
 
   AIQuestionPaper({
     required this.id,
@@ -31,6 +33,8 @@ class AIQuestionPaper {
     required this.totalMarks,
     this.aiOption = AiOption.common,
     this.chapterOption = ChapterOption.chapter,
+    this.chapterIds,
+    this.headingIds,
   });
 
   AIQuestionPaper copyWith({
@@ -45,6 +49,8 @@ class AIQuestionPaper {
     double? totalMarks,
     AiOption? aiOption,
     ChapterOption? chapterOption,
+    List<String>? chapterIds,
+    List<String>? headingIds,
   }) {
     return AIQuestionPaper(
       id: id ?? this.id,
@@ -58,6 +64,8 @@ class AIQuestionPaper {
       totalMarks: totalMarks ?? this.totalMarks,
       aiOption: aiOption ?? this.aiOption,
       chapterOption: chapterOption ?? this.chapterOption,
+      chapterIds: chapterIds ?? this.chapterIds,
+      headingIds: headingIds ?? this.headingIds,
     );
   }
 }
@@ -88,19 +96,25 @@ class AIQuestionBuilderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<ApiResponse> generateQuestions(AIQuestionPaper paper,
-      {List<String>? chapterNames}) async {
+  Future<ApiResponse> generateQuestions(
+    AIQuestionPaper paper, {
+    List<String>? chapterIds,
+    List<String>? headingIds,
+    String difficulty = 'medium',
+  }) async {
     return await ApiService.generateQuestions(
+      bookId: paper.bookName, // bookName is used as ID in this model
+      chapterIds: chapterIds ?? paper.chapterIds,
+      headingIds: headingIds ?? paper.headingIds,
+      numQuestions: paper.totalQuestions,
+      marksPerQuestion: paper.marksPerQuestion,
+      difficulty: difficulty,
+      aiOption:
+          // paper.aiOption == AiOption.common ? 'Common ai' :
+          'MediAI',
       examName: paper.examName,
-      topicOrBookName: paper.bookName,
       date:
           '${paper.date.year.toString().padLeft(4, '0')}-${paper.date.month.toString().padLeft(2, '0')}-${paper.date.day.toString().padLeft(2, '0')}',
-      duration: _formatDuration(paper.startTime, paper.endTime),
-      totalQuestions: paper.totalQuestions,
-      marksPerQuestion: paper.marksPerQuestion,
-      aiOption: paper.aiOption == AiOption.common ? 'Common ai' : 'MediAi',
-      chapterNames: chapterNames,
-      bookName: paper.bookName,
       startTime: _formatTime(paper.startTime),
       endTime: _formatTime(paper.endTime),
     );

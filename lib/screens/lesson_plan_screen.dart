@@ -318,9 +318,13 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
                 ],
                 if (plan.pdfUrl != null)
                   ElevatedButton.icon(
-                    onPressed: () => _openPdf(plan.pdfUrl!),
-                    icon: const Icon(Icons.picture_as_pdf),
-                    label: const Text('View PDF'),
+                    onPressed: () => _downloadPdfWithProgress(
+                      url: plan.pdfUrl!,
+                      bookName: plan.bookName,
+                      chapterName: plan.chapterName,
+                    ),
+                    icon: const Icon(Icons.download),
+                    label: const Text('Download PDF'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryGradient[0],
                       foregroundColor: Colors.white,
@@ -361,6 +365,161 @@ class _LessonPlanScreenState extends State<LessonPlanScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not launch $fullUrl')),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadPdfWithProgress({
+    required String url,
+    required String bookName,
+    String? chapterName,
+  }) async {
+    try {
+      // State variables for download tracking
+      ValueNotifier<int> downloadedBytesNotifier = ValueNotifier(0);
+      ValueNotifier<int> totalBytesNotifier = ValueNotifier(0);
+      ValueNotifier<String> statusNotifier = ValueNotifier('Preparing...');
+
+      // Show download progress dialog
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Downloading PDF'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 2.h),
+
+                // Status message
+                ValueListenableBuilder<String>(
+                  valueListenable: statusNotifier,
+                  builder: (context, status, _) => Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 3.5.w,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryGradient[0],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                SizedBox(height: 2.h),
+
+                // Progress bar
+                ValueListenableBuilder<int>(
+                  valueListenable: downloadedBytesNotifier,
+                  builder: (context, downloaded, _) {
+                    return ValueListenableBuilder<int>(
+                      valueListenable: totalBytesNotifier,
+                      builder: (context, total, _) {
+                        return Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: total > 0 ? downloaded / total : 0,
+                                minHeight: 8,
+                                backgroundColor: Colors.grey[300],
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.primaryGradient[0],
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: 1.5.h),
+
+                            // Progress percentage and size
+                            Text(
+                              total > 0
+                                  ? '${(downloaded / total * 100).toStringAsFixed(0)}% - ${(downloaded / 1024 / 1024).toStringAsFixed(2)} MB / ${(total / 1024 / 1024).toStringAsFixed(2)} MB'
+                                  : 'Initializing...',
+                              style: TextStyle(
+                                fontSize: 3.w,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+
+      final response = await ApiService.downloadPdfFromUrl(
+        pdfUrl: url,
+        fileName: 'Lesson_Plan_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        bookId: bookName,
+        onProgress: (received, total) {
+          downloadedBytesNotifier.value = received;
+          totalBytesNotifier.value = total;
+        },
+        onStatusChange: (status) {
+          statusNotifier.value = status;
+        },
+      );
+
+      // Close progress dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (response.status && response.data != null) {
+        final downloadData = response.data as Map<String, dynamic>;
+        final filePath = downloadData['file_path'] as String?;
+        final fileName = downloadData['file_name'] as String?;
+
+        if (mounted && filePath != null) {
+          // Auto open after download as requested
+          await OpenFile.open(filePath);
+
+          // Optional: Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Downloaded: $fileName'),
+              backgroundColor: Colors.green,
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () => OpenFile.open(filePath),
+              ),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? 'Download failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error downloading PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

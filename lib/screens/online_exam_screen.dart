@@ -5,6 +5,7 @@ import 'package:sizer/sizer.dart';
 import '../viewmodels/exam_view_model.dart';
 import '../models/exam.dart';
 import 'exam_taking_screen.dart';
+import '../viewmodels/book_view_model.dart';
 
 class OnlineExamScreen extends StatefulWidget {
   const OnlineExamScreen({super.key});
@@ -22,6 +23,7 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ExamViewModel>().loadExams();
+      context.read<BookViewModel>().loadBooks();
     });
 
     // Start timer to refresh exam status every minute
@@ -234,8 +236,12 @@ class _OnlineExamScreenState extends State<OnlineExamScreen> {
                 cells: [
                   DataCell(Text(exam.examName,
                       style: const TextStyle(color: Colors.black))),
-                  DataCell(Text(exam.bookName,
-                      style: const TextStyle(color: Colors.black))),
+                  DataCell(Consumer<BookViewModel>(
+                    builder: (context, bookVm, _) => Text(
+                        bookVm.getBookByName(exam.bookName)?.title ??
+                            exam.bookName,
+                        style: const TextStyle(color: Colors.black)),
+                  )),
                   DataCell(Text(_formatDate(exam.date),
                       style: const TextStyle(color: Colors.black))),
                   DataCell(
@@ -659,10 +665,13 @@ class _ExamCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _InfoItem(
-                    icon: Icons.book,
-                    label: 'Book Name',
-                    value: exam.bookName,
+                  child: Consumer<BookViewModel>(
+                    builder: (context, bookVm, _) => _InfoItem(
+                      icon: Icons.book,
+                      label: 'Book Name',
+                      value: bookVm.getBookByName(exam.bookName)?.title ??
+                          exam.bookName,
+                    ),
                   ),
                 ),
                 Expanded(
