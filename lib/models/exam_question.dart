@@ -24,9 +24,10 @@ class ExamQuestion {
     if (json.containsKey('option_a')) {
       final optionKeys = ['option_a', 'option_b', 'option_c', 'option_d'];
       final optionAnsLabels = ['A', 'B', 'C', 'D'];
-      final correctAns =
-          (json['correct_answer'] ?? json['answer'])?.toString().toUpperCase() ??
-              '';
+      final correctAns = (json['correct_answer'] ?? json['answer'])
+              ?.toString()
+              .toUpperCase() ??
+          '';
 
       for (int i = 0; i < optionKeys.length; i++) {
         final key = optionKeys[i];
@@ -50,7 +51,8 @@ class ExamQuestion {
         if (rawOptions.first is Map) {
           // List of maps (standard format)
           optionsList = rawOptions
-              .map((option) => ExamOption.fromJson(option as Map<String, dynamic>))
+              .map((option) =>
+                  ExamOption.fromJson(option as Map<String, dynamic>))
               .toList();
         } else {
           // List of strings
@@ -65,8 +67,7 @@ class ExamQuestion {
             ));
           }
           // Try to find correct answer from 'answer', 'correct_answer', or 'answer_index'
-          final ans =
-              (json['answer'] ?? json['correct_answer'])?.toString();
+          final ans = (json['answer'] ?? json['correct_answer'])?.toString();
           final ansIdx = json['answer_index'];
 
           int? idx;
@@ -75,11 +76,11 @@ class ExamQuestion {
           } else if (ans != null) {
             if (ans.length == 1) {
               final labelIdx = ['A', 'B', 'C', 'D'].indexOf(ans.toUpperCase());
-              if (labelIdx >= 0 && labelIdx < optionsList.length) idx = labelIdx;
+              if (labelIdx >= 0 && labelIdx < optionsList.length)
+                idx = labelIdx;
             }
             if (idx == null) {
-              final textIdx =
-                  rawOptions.indexWhere((o) => o.toString() == ans);
+              final textIdx = rawOptions.indexWhere((o) => o.toString() == ans);
               if (textIdx >= 0) idx = textIdx;
             }
           }
@@ -201,8 +202,9 @@ class ExamTakingData {
       marksPerQuestion: json['marks_per_question'] ?? '0',
       totalMarks: json['total_marks'] ?? '0',
       questions: (json['questions'] as List<dynamic>?)
-          ?.map((question) => ExamQuestion.fromJson(question))
-          .toList() ?? [],
+              ?.map((question) => ExamQuestion.fromJson(question))
+              .toList() ??
+          [],
     );
   }
 
@@ -221,6 +223,3 @@ class ExamTakingData {
     };
   }
 }
-
-
-
